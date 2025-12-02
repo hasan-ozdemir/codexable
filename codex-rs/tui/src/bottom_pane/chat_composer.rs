@@ -1837,7 +1837,8 @@ impl Renderable for ChatComposer {
         let style = user_message_style();
         Block::default().style(style).render_ref(composer_rect, buf);
         if self.editor_borderline {
-            let border_style = Style::default().bg(Color::DarkGray);
+            let line_symbol = "─";
+            let border_style = Style::default().fg(Color::DarkGray);
             let start_x = textarea_rect.x;
             let end_x = textarea_rect.x.saturating_add(textarea_rect.width);
 
@@ -1845,16 +1846,20 @@ impl Renderable for ChatComposer {
             if top_y >= composer_rect.y && top_y < composer_rect.y + composer_rect.height {
                 for x in start_x..end_x {
                     let cell = buf.get_mut(x, top_y);
-                    cell.set_symbol(" ");
-                    cell.set_style(border_style);
+                    if cell.symbol() != line_symbol || cell.style != border_style {
+                        cell.set_symbol(line_symbol);
+                        cell.set_style(border_style);
+                    }
                 }
             }
             let bottom_y = textarea_rect.y + textarea_rect.height;
             if bottom_y < composer_rect.y + composer_rect.height {
                 for x in start_x..end_x {
                     let cell = buf.get_mut(x, bottom_y);
-                    cell.set_symbol(" ");
-                    cell.set_style(border_style);
+                    if cell.symbol() != line_symbol || cell.style != border_style {
+                        cell.set_symbol(line_symbol);
+                        cell.set_style(border_style);
+                    }
                 }
             }
         }
