@@ -61,7 +61,7 @@ function main() {
             status: "ok",
             payload: {
               // Change shortcuts here; more than one keybinding allowed.
-              external_edit_keys: [{ code: "Char", char: "g", ctrl: true }],
+              external_edit_keys: [{ code: "Char", char: "e", ctrl: true }],
               history_prev_keys: [{ code: "PageUp", ctrl: true }],
               history_next_keys: [{ code: "PageDown", ctrl: true }],
               // Override editor command if desired (string or array)
