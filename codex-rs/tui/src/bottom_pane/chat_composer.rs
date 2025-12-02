@@ -121,6 +121,7 @@ pub(crate) struct ChatComposer {
     extension_host: ExtensionHost,
     extension_keys: ExtensionKeyConfig,
     hide_edit_marker: bool,
+    hide_prompt_hints: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -176,6 +177,9 @@ impl ChatComposer {
             extension_host: ExtensionHost::new(),
             extension_keys: ExtensionKeyConfig::default(),
             hide_edit_marker: env::var("a11y_hide_edit_marker")
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
+                .unwrap_or(true),
+            hide_prompt_hints: env::var("a11y_hide_prompt_hints")
                 .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),
         };
@@ -1825,11 +1829,10 @@ impl Renderable for ChatComposer {
                 textarea_rect.width,
             );
         }
-        }
 
         let mut state = self.textarea_state.borrow_mut();
         StatefulWidgetRef::render_ref(&(&self.textarea), textarea_rect, buf, &mut state);
-        if self.textarea.text().is_empty() {
+        if self.textarea.text().is_empty() && !self.hide_prompt_hints {
             let placeholder = Span::from(self.placeholder_text.as_str()).dim();
             Line::from(vec![placeholder]).render_ref(textarea_rect.inner(Margin::new(0, 0)), buf);
         }
