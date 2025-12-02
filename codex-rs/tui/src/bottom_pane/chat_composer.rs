@@ -48,6 +48,7 @@ use crate::slash_command::built_in_slash_commands;
 use crate::style::user_message_style;
 use codex_protocol::custom_prompts::CustomPrompt;
 use codex_protocol::custom_prompts::PROMPTS_CMD_PREFIX;
+use std::env;
 
 use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
@@ -119,6 +120,7 @@ pub(crate) struct ChatComposer {
     context_window_percent: Option<i64>,
     extension_host: ExtensionHost,
     extension_keys: ExtensionKeyConfig,
+    hide_edit_marker: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -173,6 +175,9 @@ impl ChatComposer {
             context_window_percent: None,
             extension_host: ExtensionHost::new(),
             extension_keys: ExtensionKeyConfig::default(),
+            hide_edit_marker: env::var("a11y_hide_edit_marker")
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
+                .unwrap_or(true),
         };
         this.extension_keys = this.load_extension_keys();
         // Apply configuration via the setter to keep side-effects centralized.
@@ -1221,7 +1226,7 @@ impl ChatComposer {
         {
             return true;
         }
-        key.code == KeyCode::Char('g')
+        key.code == KeyCode::Char('e')
             && key.modifiers.contains(KeyModifiers::CONTROL)
             && key.kind == KeyEventKind::Press
     }
@@ -1812,13 +1817,14 @@ impl Renderable for ChatComposer {
         }
         let style = user_message_style();
         Block::default().style(style).render_ref(composer_rect, buf);
-        if !textarea_rect.is_empty() {
+        if !textarea_rect.is_empty() && !self.hide_edit_marker {
             buf.set_span(
                 textarea_rect.x - LIVE_PREFIX_COLS,
                 textarea_rect.y,
-                &"›".bold(),
+                &">".bold(),
                 textarea_rect.width,
             );
+        }
         }
 
         let mut state = self.textarea_state.borrow_mut();

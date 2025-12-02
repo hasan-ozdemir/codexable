@@ -436,7 +436,7 @@ impl ExtensionHost {
 
     fn load_config(scripts: &[PathBuf]) -> ExtensionConfig {
         let cfg = ExtensionConfig {
-            external_edit_keys: vec![KeyBinding::ctrl_char('g')],
+            external_edit_keys: vec![KeyBinding::ctrl_char('e')],
             history_prev_keys: vec![KeyBinding::alt_code(KeyCode::PageUp)],
             history_next_keys: vec![KeyBinding::alt_code(KeyCode::PageDown)],
             history_first_keys: vec![KeyBinding::alt_code(KeyCode::Home)],
