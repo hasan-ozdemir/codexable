@@ -122,6 +122,7 @@ pub(crate) struct ChatComposer {
     extension_keys: ExtensionKeyConfig,
     hide_edit_marker: bool,
     hide_prompt_hints: bool,
+    hide_statusbar_hints: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -180,6 +181,9 @@ impl ChatComposer {
                 .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),
             hide_prompt_hints: env::var("a11y_hide_prompt_hints")
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
+                .unwrap_or(true),
+            hide_statusbar_hints: env::var("a11y_hide_statusbar_hints")
                 .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),
         };
@@ -1600,6 +1604,7 @@ impl ChatComposer {
             use_shift_enter_hint: self.use_shift_enter_hint,
             is_task_running: self.is_task_running,
             context_window_percent: self.context_window_percent,
+            hide_statusbar_hints: self.hide_statusbar_hints,
         }
     }
 

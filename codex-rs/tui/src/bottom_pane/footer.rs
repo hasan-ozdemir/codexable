@@ -18,6 +18,7 @@ pub(crate) struct FooterProps {
     pub(crate) use_shift_enter_hint: bool,
     pub(crate) is_task_running: bool,
     pub(crate) context_window_percent: Option<i64>,
+    pub(crate) hide_statusbar_hints: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -82,11 +83,13 @@ fn footer_lines(props: FooterProps) -> Vec<Line<'static>> {
         })],
         FooterMode::ShortcutSummary => {
             let mut line = context_window_line(props.context_window_percent);
-            line.push_span(" · ".dim());
-            line.extend(vec![
-                key_hint::plain(KeyCode::Char('?')).into(),
-                " for shortcuts".dim(),
-            ]);
+            if !props.hide_statusbar_hints {
+                line.push_span(" · ".dim());
+                line.extend(vec![
+                    key_hint::plain(KeyCode::Char('?')).into(),
+                    " for shortcuts".dim(),
+                ]);
+            }
             vec![line]
         }
         FooterMode::ShortcutOverlay => shortcut_overlay_lines(ShortcutsState {
@@ -400,6 +403,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 context_window_percent: None,
+                hide_statusbar_hints: false,
             },
         );
 
@@ -411,6 +415,7 @@ mod tests {
                 use_shift_enter_hint: true,
                 is_task_running: false,
                 context_window_percent: None,
+                hide_statusbar_hints: false,
             },
         );
 
@@ -422,6 +427,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 context_window_percent: None,
+                hide_statusbar_hints: false,
             },
         );
 
@@ -433,6 +439,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: true,
                 context_window_percent: None,
+                hide_statusbar_hints: false,
             },
         );
 
@@ -444,6 +451,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 context_window_percent: None,
+                hide_statusbar_hints: false,
             },
         );
 
@@ -455,6 +463,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 context_window_percent: None,
+                hide_statusbar_hints: false,
             },
         );
 
@@ -466,6 +475,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: true,
                 context_window_percent: Some(72),
+                hide_statusbar_hints: false,
             },
         );
     }
