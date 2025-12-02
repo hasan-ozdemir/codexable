@@ -1836,16 +1836,20 @@ impl Renderable for ChatComposer {
         let style = user_message_style();
         Block::default().style(style).render_ref(composer_rect, buf);
         if self.editor_borderline {
+            let line_symbol = "-";
+            let start_x = textarea_rect.x;
+            let end_x = textarea_rect.x.saturating_add(textarea_rect.width);
+
             let top_y = textarea_rect.y.saturating_sub(1);
             if top_y >= composer_rect.y && top_y < composer_rect.y + composer_rect.height {
-                for x in composer_rect.x..composer_rect.x + composer_rect.width {
-                    buf.get_mut(x, top_y).set_symbol("-");
+                for x in start_x..end_x {
+                    buf.get_mut(x, top_y).set_symbol(line_symbol);
                 }
             }
             let bottom_y = textarea_rect.y + textarea_rect.height;
             if bottom_y < composer_rect.y + composer_rect.height {
-                for x in composer_rect.x..composer_rect.x + composer_rect.width {
-                    buf.get_mut(x, bottom_y).set_symbol("-");
+                for x in start_x..end_x {
+                    buf.get_mut(x, bottom_y).set_symbol(line_symbol);
                 }
             }
         }
