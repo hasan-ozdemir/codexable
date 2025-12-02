@@ -21,7 +21,7 @@ set "a11y_hide_edit_marker=true"
 set "a11y_hide_prompt_hints=true"
 set "a11y_hide_statusbar_hints=true"
 set "a11y_editor_align_left=true"
-set "a11y_editor_borderline=false"
+set "a11y_editor_borderline=true"
 
 :parse_args
 if "%~1"=="" goto after_parse
