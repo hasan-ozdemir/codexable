@@ -16,6 +16,12 @@ rem Env for dev run
 set "CODEX_TUI_EXTENSION_DIR=%REPO_ROOT%\extensions"
 set "codex_extensions_log=true"
 set "AZURE_AI_API_KEY=[REDACTED_AZURE_KEY]"
+rem Accessibility defaults (can be overridden by caller)
+set "a11y_hide_edit_marker=true"
+set "a11y_hide_prompt_hints=true"
+set "a11y_hide_statusbar_hints=true"
+set "a11y_editor_align_left=true"
+set "a11y_editor_borderline=false"
 
 :parse_args
 if "%~1"=="" goto after_parse
