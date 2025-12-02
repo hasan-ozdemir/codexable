@@ -159,7 +159,10 @@ impl ExtensionHost {
                     "Extension returned success without text".to_string(),
                 ))
             }
-            Ok(Some(ExtensionReply::Skip)) | Ok(None) => Ok(None),
+            Ok(Some(ExtensionReply::Skip)) | Ok(None) => {
+                self.log_event("external_edit extension skip -> fallback");
+                Ok(None)
+            }
             Err(err) => Err(ExternalEditorError::Extension(err.to_string())),
         }
     }
