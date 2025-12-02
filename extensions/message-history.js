@@ -11,9 +11,15 @@
  *   remembered in ~/.codex/history/current_session for subsequent calls.
  */
 
-import fs from "fs";
-import os from "os";
-import path from "path";
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+
+const ignoreSystemPrompts = (() => {
+  const val = process.env.CODEX_HISTORY_IGNORE_SYSTEM_PROMPTS;
+  if (val === undefined) return true;
+  return !["0", "false", "no"].includes(String(val).trim().toLowerCase());
+})();
 
 function readRequest() {
   return new Promise((resolve, reject) => {
@@ -48,8 +54,8 @@ const historyDir = (() => {
   if (home) return path.join(home, ".codex", "history");
   return path.join(os.tmpdir(), "codex-history");
 })();
-
 const currentSessionFile = path.join(historyDir, "current_session");
+const lastSessionPathFile = path.join(historyDir, "current_session_path");
 
 function ensureDir(dir) {
   try {
@@ -87,6 +93,25 @@ function writeCurrentSessionId(id) {
   ensureDir(historyDir);
   try {
     fs.writeFileSync(currentSessionFile, id, "utf8");
+  } catch {
+    /* ignore */
+  }
+}
+
+function readLastSessionPath() {
+  try {
+    const raw = fs.readFileSync(lastSessionPathFile, "utf8").trim();
+    return raw || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastSessionPath(sessionPath) {
+  if (typeof sessionPath !== "string" || !sessionPath.trim()) return;
+  ensureDir(historyDir);
+  try {
+    fs.writeFileSync(lastSessionPathFile, sessionPath.trim(), "utf8");
   } catch {
     /* ignore */
   }
@@ -132,7 +157,8 @@ function parseUserContent(value) {
 }
 
 function readRolloutUserMessages(sessionPath) {
-  const messages = [];
+  const eventMessages = [];
+  const responseMessages = [];
   try {
     const data = fs.readFileSync(sessionPath, "utf8");
     for (const line of data.split(/\r?\n/)) {
@@ -144,17 +170,28 @@ function readRolloutUserMessages(sessionPath) {
         continue;
       }
       const payload = obj?.payload && typeof obj.payload === "object" ? obj.payload : obj;
+
+      if (obj?.type === "event_msg" && payload?.type === "user_message") {
+        const text = extractEventUserText(payload);
+        const cleaned = cleanText(text);
+        if (cleaned) eventMessages.push(cleaned);
+        continue;
+      }
+
       const role = payload?.role;
-      if (role !== "user") continue;
-      const content = parseUserContent(payload?.content);
-      if (typeof content === "string" && content.trim()) {
-        messages.push(content);
+      if (obj?.type === "response_item" && role === "user") {
+        const text = extractResponseUserText(payload);
+        const cleaned = cleanText(text);
+        if (cleaned) responseMessages.push(cleaned);
       }
     }
   } catch {
     /* ignore read/parse errors */
   }
-  return messages;
+  if (eventMessages.length > 0) {
+    return collapse_consecutive_unique(eventMessages);
+  }
+  return collapse_consecutive_unique(responseMessages);
 }
 
 function readEntries(filePath) {
@@ -165,18 +202,20 @@ function readEntries(filePath) {
       if (!line.trim()) continue;
       try {
         const parsed = JSON.parse(line);
-        if (parsed && typeof parsed.text === "string") {
-          entries.push(parsed.text);
+        if (parsed && typeof parsed.text === "string" && parsed.text.trim()) {
+          const cleaned = cleanText(parsed.text);
+          if (cleaned) entries.push(cleaned);
         }
       } catch {
         // if plain string line, accept it
-        entries.push(line);
+        const cleaned = cleanText(line);
+        if (cleaned) entries.push(cleaned);
       }
     }
   } catch {
     /* missing or unreadable file => empty */
   }
-  return entries;
+  return collapse_consecutive_unique(entries);
 }
 
 function overwriteEntries(filePath, entries) {
@@ -190,9 +229,15 @@ function overwriteEntries(filePath, entries) {
 }
 
 function appendEntry(filePath, text) {
+  if (typeof text !== "string" || !text.trim()) return;
+  const cleaned = cleanText(text);
+  if (!cleaned) return;
+  const current = readEntries(filePath);
+  const last = current[current.length - 1];
+  if (last && normalize_key(last) === normalize_key(cleaned)) return;
   ensureDir(path.dirname(filePath));
   try {
-    fs.appendFileSync(filePath, `${JSON.stringify({ text })}\n`, "utf8");
+    fs.appendFileSync(filePath, `${JSON.stringify({ text: cleaned })}\n`, "utf8");
   } catch {
     /* ignore */
   }
@@ -222,7 +267,86 @@ function writeCursor(statePath, cursor) {
 function normalizedText(req) {
   const payloadText =
     (req && req.payload && req.payload.text) || req.text || req.input;
-  return typeof payloadText === "string" ? payloadText.trim() : "";
+  const cleaned = cleanText(payloadText);
+  return cleaned ?? "";
+}
+
+function clampCursor(cursor, length) {
+  if (!Number.isInteger(cursor)) return length;
+  if (cursor < 0) return 0;
+  if (cursor > length) return length;
+  return cursor;
+}
+
+function extractEventUserText(payload) {
+  let text = null;
+  if (typeof payload?.message === "string") {
+    text = payload.message;
+  } else if (payload?.content) {
+    text = parseUserContent(payload.content);
+  }
+  return text;
+}
+
+function extractResponseUserText(payload) {
+  const content = parseUserContent(payload?.content);
+  return content;
+}
+
+function dedup_entries(list) {
+  return collapse_consecutive_unique(list);
+}
+
+function pushUnique(arr, seen, text) {
+  const key = normalize_key(text);
+  if (!key) return;
+  if (seen.has(key)) return;
+  seen.add(key);
+  arr.push(cleanText(text));
+}
+
+function cleanText(text) {
+  if (typeof text !== "string") return null;
+  const normalized = text.replace(/\r\n?/g, "\n");
+  const trimmed = normalized.trim();
+  if (!trimmed) return null;
+  if (ignoreSystemPrompts && isSystemGenerated(trimmed)) return null;
+  return trimmed;
+}
+
+function normalize_key(text) {
+  const cleaned = cleanText(text);
+  if (!cleaned) return null;
+  return cleaned.replace(/\s+/g, " ");
+}
+
+function collapse_consecutive_unique(list) {
+  const out = [];
+  let lastKey = null;
+  for (const item of list) {
+    const key = normalize_key(item);
+    if (!key) continue;
+    if (key === lastKey) continue;
+    lastKey = key;
+    out.push(cleanText(item));
+  }
+  return out;
+}
+
+function isSystemGenerated(text) {
+  if (typeof text !== "string") return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith("# AGENTS.md instructions for")) return true;
+  if (trimmed.startsWith("<environment_context>")) return true;
+  return false;
+}
+
+function clampCursor(cursor, length) {
+  if (!Number.isInteger(cursor)) return length;
+  if (cursor < 0) return 0;
+  if (cursor > length) return length;
+  return cursor;
 }
 
 function handleSeed(req) {
@@ -230,7 +354,10 @@ function handleSeed(req) {
   const { entries: entriesFile, state: stateFile } = filesForSession(sessionId);
   log(`history_seed received session=${sessionId}`);
   const sessionPath = req?.payload?.session_path ?? req?.session_path;
-  if (sessionPath) log(`history_seed session_path=${sessionPath}`);
+  if (sessionPath) {
+    log(`history_seed session_path=${sessionPath}`);
+    writeLastSessionPath(sessionPath);
+  }
 
   const fromSessionFile =
     typeof sessionPath === "string" ? readRolloutUserMessages(sessionPath) : [];
@@ -241,10 +368,12 @@ function handleSeed(req) {
       : Array.isArray(incoming) && incoming.length > 0
       ? incoming.slice()
       : [];
+  const deduped = dedup_entries(merged);
 
-  log(`history_seed entries=${merged.length}`);
-  overwriteEntries(entriesFile, merged);
-  writeCursor(stateFile, merged.length);
+  log(`history_seed entries=${deduped.length}`);
+  overwriteEntries(entriesFile, deduped);
+  writeCursor(stateFile, deduped.length);
+  log(`history_seed persisted entries=${deduped.length}`);
   return { status: "ok" };
 }
 
@@ -265,31 +394,65 @@ function handlePush(req) {
 function handlePrev(req) {
   const sessionId = activeSessionId(req);
   const { entries: entriesFile, state: stateFile } = filesForSession(sessionId);
-  const entries = readEntries(entriesFile);
-  let cursor = readCursor(stateFile, entries.length);
-  log(`history_prev session=${sessionId} cursor=${cursor} entries=${entries.length}`);
-  if (!entries.length) return { status: "skip" };
-  cursor = Math.max(0, Math.min(cursor, entries.length));
-  if (cursor === 0) {
-    writeCursor(stateFile, cursor);
-    return { status: "ok", text: entries[0] };
+  let entries = readEntries(entriesFile);
+  if (!entries.length) {
+    const lastPath = readLastSessionPath();
+    if (lastPath) {
+      entries = readRolloutUserMessages(lastPath);
+      overwriteEntries(entriesFile, entries);
+      writeCursor(stateFile, entries.length);
+    }
   }
-  cursor -= 1;
-  writeCursor(stateFile, cursor);
-  return { status: "ok", text: entries[cursor] };
+  if (!entries.length) {
+    log(`history_prev no entries for session=${sessionId}, skipping`);
+    return { status: "skip" };
+  }
+
+  let cursor = clampCursor(readCursor(stateFile, entries.length), entries.length);
+  if (cursor >= entries.length) {
+    cursor = entries.length;
+  }
+  const idx = cursor <= 0 ? 0 : cursor - 1;
+  writeCursor(stateFile, idx);
+  const text = entries[idx] ?? "";
+  log(
+    `history_prev session=${sessionId} cursor_in=${cursor} cursor_out=${idx} entries=${entries.length}`,
+  );
+  return { status: "ok", text };
 }
 
 function handleNext(req) {
   const sessionId = activeSessionId(req);
   const { entries: entriesFile, state: stateFile } = filesForSession(sessionId);
-  const entries = readEntries(entriesFile);
-  let cursor = readCursor(stateFile, entries.length);
-  log(`history_next session=${sessionId} cursor=${cursor} entries=${entries.length}`);
-  if (!entries.length) return { status: "skip" };
-  cursor = Math.max(0, Math.min(cursor, entries.length));
-  if (cursor < entries.length) cursor += 1;
-  const text = cursor >= entries.length ? "" : entries[cursor];
-  writeCursor(stateFile, cursor);
+  let entries = readEntries(entriesFile);
+  if (!entries.length) {
+    const lastPath = readLastSessionPath();
+    if (lastPath) {
+      entries = readRolloutUserMessages(lastPath);
+      overwriteEntries(entriesFile, entries);
+      writeCursor(stateFile, entries.length);
+    }
+  }
+  if (!entries.length) {
+    log(`history_next no entries for session=${sessionId}, skipping`);
+    return { status: "skip" };
+  }
+
+  let cursor = clampCursor(readCursor(stateFile, entries.length), entries.length);
+  if (cursor >= entries.length - 1) {
+    writeCursor(stateFile, entries.length);
+    log(
+      `history_next session=${sessionId} cursor_in=${cursor} cursor_out=${entries.length} entries=${entries.length}`,
+    );
+    return { status: "ok", text: "" };
+  }
+
+  const idx = cursor + 1;
+  const text = entries[idx] ?? "";
+  writeCursor(stateFile, idx);
+  log(
+    `history_next session=${sessionId} cursor_in=${cursor} cursor_out=${idx} entries=${entries.length}`,
+  );
   return { status: "ok", text };
 }
 

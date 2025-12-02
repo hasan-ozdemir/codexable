@@ -977,6 +977,12 @@ impl ChatComposer {
             // -------------------------------------------------------------
             input if self.matches_history_prev(&input) => {
                 self.extension_host.log_event("Key matched history_prev");
+                if let Some(text) = self.extension_history_navigation(KeyCode::Up) {
+                    self.set_text_content(text);
+                    self.extension_host
+                        .log_event("Applied history_prev text to textarea");
+                    return (InputResult::None, true);
+                }
                 if self
                     .history
                     .should_handle_navigation(self.textarea.text(), self.textarea.cursor())
@@ -995,6 +1001,12 @@ impl ChatComposer {
             }
             input if self.matches_history_next(&input) => {
                 self.extension_host.log_event("Key matched history_next");
+                if let Some(text) = self.extension_history_navigation(KeyCode::Down) {
+                    self.set_text_content(text);
+                    self.extension_host
+                        .log_event("Applied history_next text to textarea");
+                    return (InputResult::None, true);
+                }
                 if self
                     .history
                     .should_handle_navigation(self.textarea.text(), self.textarea.cursor())
@@ -1162,7 +1174,7 @@ impl ChatComposer {
             KeyCode::Down => self.extension_host.history_next(),
             _ => None,
         }?;
-        if text.is_empty() { None } else { Some(text) }
+        Some(text)
     }
 
     fn load_extension_keys(&self) -> ExtensionKeyConfig {
