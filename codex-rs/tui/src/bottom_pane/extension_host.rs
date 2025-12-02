@@ -37,6 +37,8 @@ pub(crate) struct ExtensionConfig {
     pub external_edit_keys: Vec<KeyBinding>,
     pub history_prev_keys: Vec<KeyBinding>,
     pub history_next_keys: Vec<KeyBinding>,
+    pub history_first_keys: Vec<KeyBinding>,
+    pub history_last_keys: Vec<KeyBinding>,
     pub editor_command: Option<Vec<String>>,
 }
 
@@ -195,6 +197,15 @@ impl ExtensionHost {
         result
     }
 
+    #[cfg_attr(test, allow(dead_code))]
+    pub(crate) fn history_first(&self) -> Option<String> {
+        self.maybe_seed_history();
+        self.log_event("history_first invoked");
+        let result = self.history_lookup("history_first");
+        self.log_event(format!("history_first result={result:?}"));
+        result
+    }
+
     fn ensure_session_path(&self) {
         if self.session_path.borrow().is_some() {
             return;
@@ -217,6 +228,15 @@ impl ExtensionHost {
         self.log_event("history_next invoked");
         let result = self.history_lookup("history_next");
         self.log_event(format!("history_next result={result:?}"));
+        result
+    }
+
+    #[cfg_attr(test, allow(dead_code))]
+    pub(crate) fn history_last(&self) -> Option<String> {
+        self.maybe_seed_history();
+        self.log_event("history_last invoked");
+        let result = self.history_lookup("history_last");
+        self.log_event(format!("history_last result={result:?}"));
         result
     }
 
@@ -417,8 +437,10 @@ impl ExtensionHost {
     fn load_config(scripts: &[PathBuf]) -> ExtensionConfig {
         let cfg = ExtensionConfig {
             external_edit_keys: vec![KeyBinding::ctrl_char('g')],
-            history_prev_keys: vec![KeyBinding::ctrl_code(KeyCode::PageUp)],
-            history_next_keys: vec![KeyBinding::ctrl_code(KeyCode::PageDown)],
+            history_prev_keys: vec![KeyBinding::alt_code(KeyCode::PageUp)],
+            history_next_keys: vec![KeyBinding::alt_code(KeyCode::PageDown)],
+            history_first_keys: vec![KeyBinding::alt_code(KeyCode::Home)],
+            history_last_keys: vec![KeyBinding::alt_code(KeyCode::End)],
             ..ExtensionConfig::default()
         };
 
@@ -451,6 +473,12 @@ impl ExtensionHost {
         }
         if let Some(keys) = obj.get("history_next_keys") {
             cfg.history_next_keys = Self::parse_key_list(keys);
+        }
+        if let Some(keys) = obj.get("history_first_keys") {
+            cfg.history_first_keys = Self::parse_key_list(keys);
+        }
+        if let Some(keys) = obj.get("history_last_keys") {
+            cfg.history_last_keys = Self::parse_key_list(keys);
         }
         if let Some(cmd_val) = obj.get("editor_command") {
             cfg.editor_command = Self::parse_editor_command(cmd_val);
@@ -692,6 +720,13 @@ impl KeyBinding {
         }
     }
 
+    fn alt_code(code: KeyCode) -> Self {
+        Self {
+            code,
+            modifiers: KeyModifiers::ALT,
+        }
+    }
+
     fn from_json(value: &Value) -> Option<Self> {
         let obj = value.as_object()?;
         let code_val = obj.get("code")?;
@@ -699,6 +734,8 @@ impl KeyBinding {
             match s {
                 "PageUp" => KeyCode::PageUp,
                 "PageDown" => KeyCode::PageDown,
+                "Home" => KeyCode::Home,
+                "End" => KeyCode::End,
                 "Enter" => KeyCode::Enter,
                 "Esc" => KeyCode::Esc,
                 other if other.len() == 1 => KeyCode::Char(other.chars().next().unwrap_or(' ')),

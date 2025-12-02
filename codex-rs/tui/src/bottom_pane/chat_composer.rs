@@ -126,6 +126,8 @@ struct ExtensionKeyConfig {
     external_edit: Vec<KeyBinding>,
     history_prev: Vec<KeyBinding>,
     history_next: Vec<KeyBinding>,
+    history_first: Vec<KeyBinding>,
+    history_last: Vec<KeyBinding>,
 }
 
 /// Popup state – at most one can be visible at any time.
@@ -975,6 +977,26 @@ impl ChatComposer {
             // empty or when the cursor is at the correct position, to avoid
             // interfering with normal cursor movement.
             // -------------------------------------------------------------
+            input if self.matches_history_first(&input) => {
+                self.extension_host.log_event("Key matched history_first");
+                if let Some(text) = self.extension_history_navigation(KeyCode::Home) {
+                    self.set_text_content(text);
+                    self.extension_host
+                        .log_event("Applied history_first text to textarea");
+                    return (InputResult::None, true);
+                }
+                self.handle_input_basic(input)
+            }
+            input if self.matches_history_last(&input) => {
+                self.extension_host.log_event("Key matched history_last");
+                if let Some(text) = self.extension_history_navigation(KeyCode::End) {
+                    self.set_text_content(text);
+                    self.extension_host
+                        .log_event("Applied history_last text to textarea");
+                    return (InputResult::None, true);
+                }
+                self.handle_input_basic(input)
+            }
             input if self.matches_history_prev(&input) => {
                 self.extension_host.log_event("Key matched history_prev");
                 if let Some(text) = self.extension_history_navigation(KeyCode::Up) {
@@ -1172,6 +1194,8 @@ impl ChatComposer {
         let text = match code {
             KeyCode::Up => self.extension_host.history_prev(),
             KeyCode::Down => self.extension_host.history_next(),
+            KeyCode::Home => self.extension_host.history_first(),
+            KeyCode::End => self.extension_host.history_last(),
             _ => None,
         }?;
         Some(text)
@@ -1183,6 +1207,8 @@ impl ChatComposer {
             external_edit: cfg.external_edit_keys.clone(),
             history_prev: cfg.history_prev_keys.clone(),
             history_next: cfg.history_next_keys.clone(),
+            history_first: cfg.history_first_keys.clone(),
+            history_last: cfg.history_last_keys.clone(),
         }
     }
 
@@ -1198,6 +1224,20 @@ impl ChatComposer {
         key.code == KeyCode::Char('g')
             && key.modifiers.contains(KeyModifiers::CONTROL)
             && key.kind == KeyEventKind::Press
+    }
+
+    fn matches_history_first(&self, key: &KeyEvent) -> bool {
+        self.extension_keys
+            .history_first
+            .iter()
+            .any(|kb| kb.matches(key))
+    }
+
+    fn matches_history_last(&self, key: &KeyEvent) -> bool {
+        self.extension_keys
+            .history_last
+            .iter()
+            .any(|kb| kb.matches(key))
     }
 
     fn matches_history_prev(&self, key: &KeyEvent) -> bool {

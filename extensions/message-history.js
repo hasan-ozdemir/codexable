@@ -421,6 +421,27 @@ function handlePrev(req) {
   return { status: "ok", text };
 }
 
+function handleFirst(req) {
+  const sessionId = activeSessionId(req);
+  const { entries: entriesFile, state: stateFile } = filesForSession(sessionId);
+  let entries = readEntries(entriesFile);
+  if (!entries.length) {
+    const lastPath = readLastSessionPath();
+    if (lastPath) {
+      entries = readRolloutUserMessages(lastPath);
+      overwriteEntries(entriesFile, entries);
+    }
+  }
+  if (!entries.length) {
+    log(`history_first no entries for session=${sessionId}, skipping`);
+    return { status: "skip" };
+  }
+  writeCursor(stateFile, 0);
+  const text = entries[0] ?? "";
+  log(`history_first session=${sessionId} cursor_out=0 entries=${entries.length}`);
+  return { status: "ok", text };
+}
+
 function handleNext(req) {
   const sessionId = activeSessionId(req);
   const { entries: entriesFile, state: stateFile } = filesForSession(sessionId);
@@ -456,6 +477,28 @@ function handleNext(req) {
   return { status: "ok", text };
 }
 
+function handleLast(req) {
+  const sessionId = activeSessionId(req);
+  const { entries: entriesFile, state: stateFile } = filesForSession(sessionId);
+  let entries = readEntries(entriesFile);
+  if (!entries.length) {
+    const lastPath = readLastSessionPath();
+    if (lastPath) {
+      entries = readRolloutUserMessages(lastPath);
+      overwriteEntries(entriesFile, entries);
+    }
+  }
+  if (!entries.length) {
+    log(`history_last no entries for session=${sessionId}, skipping`);
+    return { status: "skip" };
+  }
+  let idx = entries.length - 1;
+  writeCursor(stateFile, idx);
+  const text = entries[idx] ?? "";
+  log(`history_last session=${sessionId} cursor_out=${idx} entries=${entries.length}`);
+  return { status: "ok", text };
+}
+
 function dispatch(req) {
   switch (req.action) {
     case "history_seed":
@@ -466,6 +509,10 @@ function dispatch(req) {
       return handlePrev(req);
     case "history_next":
       return handleNext(req);
+    case "history_first":
+      return handleFirst(req);
+    case "history_last":
+      return handleLast(req);
     default:
       return { status: "skip" };
   }

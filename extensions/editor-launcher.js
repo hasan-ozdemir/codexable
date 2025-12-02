@@ -57,13 +57,15 @@ function main() {
       log(`request action=${req?.action}`);
       if (req.action === "config") {
         console.log(
-          JSON.stringify({
+            JSON.stringify({
             status: "ok",
             payload: {
               // Change shortcuts here; more than one keybinding allowed.
               external_edit_keys: [{ code: "Char", char: "e", ctrl: true }],
-              history_prev_keys: [{ code: "PageUp", ctrl: true }],
-              history_next_keys: [{ code: "PageDown", ctrl: true }],
+              history_prev_keys: [{ code: "PageUp", alt: true }],
+              history_next_keys: [{ code: "PageDown", alt: true }],
+              history_first_keys: [{ code: "Home", alt: true }],
+              history_last_keys: [{ code: "End", alt: true }],
               // Override editor command if desired (string or array)
               editor_command:
                 process.platform === "win32" ? "notepad" : "nano",
