@@ -167,6 +167,10 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         if readme_src.exists():
             shutil.copy2(readme_src, staging_dir / "README.md")
 
+        extensions_src = REPO_ROOT / "extensions"
+        if extensions_src.exists():
+            shutil.copytree(extensions_src, staging_dir / "extensions")
+
         package_json_path = CODEX_CLI_ROOT / "package.json"
     elif package == "codex-responses-api-proxy":
         bin_dir = staging_dir / "bin"
