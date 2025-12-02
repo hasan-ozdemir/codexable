@@ -124,6 +124,7 @@ pub(crate) struct ChatComposer {
     hide_prompt_hints: bool,
     hide_statusbar_hints: bool,
     align_left: bool,
+    editor_borderline: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -188,6 +189,9 @@ impl ChatComposer {
                 .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),
             align_left: env::var("a11y_editor_align_left")
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
+                .unwrap_or(true),
+            editor_borderline: env::var("a11y_editor_borderline")
                 .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),
         };
@@ -1831,6 +1835,20 @@ impl Renderable for ChatComposer {
         }
         let style = user_message_style();
         Block::default().style(style).render_ref(composer_rect, buf);
+        if self.editor_borderline {
+            let top_y = textarea_rect.y.saturating_sub(1);
+            if top_y >= composer_rect.y && top_y < composer_rect.y + composer_rect.height {
+                for x in composer_rect.x..composer_rect.x + composer_rect.width {
+                    buf.get_mut(x, top_y).set_symbol("-");
+                }
+            }
+            let bottom_y = textarea_rect.y + textarea_rect.height;
+            if bottom_y < composer_rect.y + composer_rect.height {
+                for x in composer_rect.x..composer_rect.x + composer_rect.width {
+                    buf.get_mut(x, bottom_y).set_symbol("-");
+                }
+            }
+        }
         if !textarea_rect.is_empty() && !self.hide_edit_marker {
             buf.set_span(
                 textarea_rect.x - LIVE_PREFIX_COLS,
