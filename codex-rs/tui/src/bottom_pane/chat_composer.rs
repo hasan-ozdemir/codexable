@@ -156,6 +156,13 @@ impl ChatComposer {
         disable_paste_burst: bool,
     ) -> Self {
         let use_shift_enter_hint = enhanced_keys_supported;
+        let extension_host = ExtensionHost::new();
+        let cfg = extension_host.config().clone();
+        let env_bool = |key: &str, default: bool| {
+            env::var(key)
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
+                .unwrap_or(default)
+        };
 
         let mut this = Self {
             textarea: TextArea::new(),
@@ -179,26 +186,26 @@ impl ChatComposer {
             footer_mode: FooterMode::ShortcutSummary,
             footer_hint_override: None,
             context_window_percent: None,
-            extension_host: ExtensionHost::new(),
+            extension_host,
             extension_keys: ExtensionKeyConfig::default(),
-            hide_edit_marker: env::var("a11y_hide_edit_marker")
-                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
-                .unwrap_or(true),
-            hide_prompt_hints: env::var("a11y_hide_prompt_hints")
-                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
-                .unwrap_or(true),
-            hide_statusbar_hints: env::var("a11y_hide_statusbar_hints")
-                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
-                .unwrap_or(true),
-            align_left: env::var("a11y_editor_align_left")
-                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
-                .unwrap_or(true),
-            editor_borderline: env::var("a11y_editor_borderline")
-                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
-                .unwrap_or(true),
-            a11y_keyboard_shortcuts: env::var("a11y_keyboard_shortcuts")
-                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
-                .unwrap_or(true),
+            hide_edit_marker: cfg
+                .hide_edit_marker
+                .unwrap_or_else(|| env_bool("a11y_hide_edit_marker", true)),
+            hide_prompt_hints: cfg
+                .hide_prompt_hints
+                .unwrap_or_else(|| env_bool("a11y_hide_prompt_hints", true)),
+            hide_statusbar_hints: cfg
+                .hide_statusbar_hints
+                .unwrap_or_else(|| env_bool("a11y_hide_statusbar_hints", true)),
+            align_left: cfg
+                .align_left
+                .unwrap_or_else(|| env_bool("a11y_editor_align_left", true)),
+            editor_borderline: cfg
+                .editor_borderline
+                .unwrap_or_else(|| env_bool("a11y_editor_borderline", true)),
+            a11y_keyboard_shortcuts: cfg
+                .a11y_keyboard_shortcuts
+                .unwrap_or_else(|| env_bool("a11y_keyboard_shortcuts", true)),
         };
         this.extension_keys = this.load_extension_keys();
         // Apply configuration via the setter to keep side-effects centralized.

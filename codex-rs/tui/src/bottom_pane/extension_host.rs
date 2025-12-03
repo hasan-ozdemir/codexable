@@ -40,6 +40,28 @@ pub(crate) struct ExtensionConfig {
     pub history_first_keys: Vec<KeyBinding>,
     pub history_last_keys: Vec<KeyBinding>,
     pub editor_command: Option<Vec<String>>,
+    pub hide_edit_marker: Option<bool>,
+    pub hide_prompt_hints: Option<bool>,
+    pub hide_statusbar_hints: Option<bool>,
+    pub align_left: Option<bool>,
+    pub editor_borderline: Option<bool>,
+    pub a11y_keyboard_shortcuts: Option<bool>,
+}
+
+#[derive(Default)]
+struct ConfigDelta {
+    external_edit_keys: Option<Vec<KeyBinding>>,
+    history_prev_keys: Option<Vec<KeyBinding>>,
+    history_next_keys: Option<Vec<KeyBinding>>,
+    history_first_keys: Option<Vec<KeyBinding>>,
+    history_last_keys: Option<Vec<KeyBinding>>,
+    editor_command: Option<Vec<String>>,
+    hide_edit_marker: Option<bool>,
+    hide_prompt_hints: Option<bool>,
+    hide_statusbar_hints: Option<bool>,
+    align_left: Option<bool>,
+    editor_borderline: Option<bool>,
+    a11y_keyboard_shortcuts: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -439,29 +461,69 @@ impl ExtensionHost {
             history_next_keys: vec![KeyBinding::alt_code(KeyCode::PageDown)],
             history_first_keys: vec![KeyBinding::alt_code(KeyCode::Home)],
             history_last_keys: vec![KeyBinding::alt_code(KeyCode::End)],
-            ..ExtensionConfig::default()
+            editor_command: None,
+            hide_edit_marker: None,
+            hide_prompt_hints: None,
+            hide_statusbar_hints: None,
+            align_left: None,
+            editor_borderline: None,
+            a11y_keyboard_shortcuts: None,
         };
 
-        for script in scripts {
+        scripts.iter().fold(cfg, |mut acc, script| {
             let log_path = Self::default_log_path();
             let request = Self::build_request("config", json!({}), &log_path);
             let response = Self::run_script(script, "config", request, &log_path);
             let Ok(ExtensionReply::Ok { payload, .. }) = response else {
-                continue;
+                return acc;
             };
             if let Some(p) = payload
                 && let Some(parsed) = Self::parse_config(p)
             {
-                return parsed;
+                if let Some(v) = parsed.external_edit_keys {
+                    acc.external_edit_keys = v;
+                }
+                if let Some(v) = parsed.history_prev_keys {
+                    acc.history_prev_keys = v;
+                }
+                if let Some(v) = parsed.history_next_keys {
+                    acc.history_next_keys = v;
+                }
+                if let Some(v) = parsed.history_first_keys {
+                    acc.history_first_keys = v;
+                }
+                if let Some(v) = parsed.history_last_keys {
+                    acc.history_last_keys = v;
+                }
+                if let Some(v) = parsed.editor_command {
+                    acc.editor_command = Some(v);
+                }
+                if let Some(v) = parsed.hide_edit_marker {
+                    acc.hide_edit_marker = Some(v);
+                }
+                if let Some(v) = parsed.hide_prompt_hints {
+                    acc.hide_prompt_hints = Some(v);
+                }
+                if let Some(v) = parsed.hide_statusbar_hints {
+                    acc.hide_statusbar_hints = Some(v);
+                }
+                if let Some(v) = parsed.align_left {
+                    acc.align_left = Some(v);
+                }
+                if let Some(v) = parsed.editor_borderline {
+                    acc.editor_borderline = Some(v);
+                }
+                if let Some(v) = parsed.a11y_keyboard_shortcuts {
+                    acc.a11y_keyboard_shortcuts = Some(v);
+                }
             }
-        }
-
-        cfg
+            acc
+        })
     }
 
-    fn parse_config(value: Value) -> Option<ExtensionConfig> {
+    fn parse_config(value: Value) -> Option<ConfigDelta> {
         let obj = value.as_object()?;
-        let mut cfg = ExtensionConfig::default();
+        let mut cfg = ConfigDelta::default();
 
         if let Some(keys) = obj.get("external_edit_keys") {
             cfg.external_edit_keys = Self::parse_key_list(keys);
@@ -480,6 +542,24 @@ impl ExtensionHost {
         }
         if let Some(cmd_val) = obj.get("editor_command") {
             cfg.editor_command = Self::parse_editor_command(cmd_val);
+        }
+        if let Some(v) = obj.get("hide_edit_marker").and_then(Value::as_bool) {
+            cfg.hide_edit_marker = Some(v);
+        }
+        if let Some(v) = obj.get("hide_prompt_hints").and_then(Value::as_bool) {
+            cfg.hide_prompt_hints = Some(v);
+        }
+        if let Some(v) = obj.get("hide_statusbar_hints").and_then(Value::as_bool) {
+            cfg.hide_statusbar_hints = Some(v);
+        }
+        if let Some(v) = obj.get("align_left").and_then(Value::as_bool) {
+            cfg.align_left = Some(v);
+        }
+        if let Some(v) = obj.get("editor_borderline").and_then(Value::as_bool) {
+            cfg.editor_borderline = Some(v);
+        }
+        if let Some(v) = obj.get("a11y_keyboard_shortcuts").and_then(Value::as_bool) {
+            cfg.a11y_keyboard_shortcuts = Some(v);
         }
 
         Some(cfg)
