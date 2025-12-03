@@ -126,6 +126,7 @@ pub(crate) struct ChatComposer {
     hide_statusbar_hints: bool,
     align_left: bool,
     editor_borderline: bool,
+    a11y_keyboard_shortcuts: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -193,6 +194,9 @@ impl ChatComposer {
                 .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),
             editor_borderline: env::var("a11y_editor_borderline")
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
+                .unwrap_or(true),
+            a11y_keyboard_shortcuts: env::var("a11y_keyboard_shortcuts")
                 .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),
         };
