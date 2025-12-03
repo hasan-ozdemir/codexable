@@ -261,9 +261,7 @@ impl ExtensionHost {
         payload: Value,
     ) -> Result<Option<ExtensionReply>, ExtensionHostError> {
         if self.scripts.is_empty() {
-            self.log_event(format!(
-                "No extensions to handle action {action}; skipping"
-            ));
+            self.log_event(format!("No extensions to handle action {action}; skipping"));
             return Ok(None);
         }
 
