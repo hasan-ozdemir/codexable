@@ -737,6 +737,30 @@ impl TextArea {
         }
     }
 
+    pub fn move_cursor_to_visual_line_start(&mut self) {
+        if let Some(cache) = self.wrap_cache.borrow().as_ref() {
+            if let Some(idx) = Self::wrapped_line_index_by_start(&cache.lines, self.cursor_pos) {
+                let start = cache.lines[idx].start;
+                self.set_cursor(start);
+                self.preferred_col = None;
+                return;
+            }
+        }
+        self.move_cursor_to_beginning_of_line(false);
+    }
+
+    pub fn move_cursor_to_visual_line_end(&mut self) {
+        if let Some(cache) = self.wrap_cache.borrow().as_ref() {
+            if let Some(idx) = Self::wrapped_line_index_by_start(&cache.lines, self.cursor_pos) {
+                let end = cache.lines[idx].end.min(self.text.len());
+                self.set_cursor(end);
+                self.preferred_col = None;
+                return;
+            }
+        }
+        self.move_cursor_to_end_of_line(false);
+    }
+
     // ===== Text elements support =====
 
     pub fn insert_element(&mut self, text: &str) {
