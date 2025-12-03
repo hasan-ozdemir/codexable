@@ -1651,6 +1651,32 @@ impl ChatComposer {
                 self.textarea.set_cursor(pos);
                 return true;
             }
+            KeyEvent {
+                code: Backspace,
+                modifiers: Mods::CONTROL,
+                ..
+            } => {
+                let start = self.prev_word_start_space_only();
+                let cur = self.textarea.cursor();
+                if start < cur {
+                    self.textarea.replace_range(start..cur, "");
+                    self.textarea.set_cursor(start);
+                }
+                return true;
+            }
+            KeyEvent {
+                code: Delete,
+                modifiers: Mods::CONTROL,
+                ..
+            } => {
+                let cur = self.textarea.cursor();
+                let end = self.next_word_start_space_only_from(cur);
+                if end > cur {
+                    self.textarea.replace_range(cur..end, "");
+                    self.textarea.set_cursor(cur);
+                }
+                return true;
+            }
             _ => {}
         }
         false
@@ -1709,6 +1735,32 @@ impl ChatComposer {
             }
         }
         start
+    }
+
+    fn next_word_start_space_only_from(&self, pos: usize) -> usize {
+        let text = self.textarea.text();
+        if pos >= text.len() {
+            return text.len();
+        }
+        let mut iter = text[pos..].char_indices();
+
+        // 1) skip remainder of current word
+        let mut offset = pos;
+        while let Some((i, ch)) = iter.next() {
+            offset = pos + i;
+            if ch.is_whitespace() {
+                break;
+            }
+        }
+
+        // 2) skip spaces to next word start
+        for (i, ch) in text[offset..].char_indices() {
+            if !ch.is_whitespace() {
+                return offset + i;
+            }
+        }
+
+        text.len()
     }
 
     fn handle_shortcut_overlay_key(&mut self, key_event: &KeyEvent) -> bool {
