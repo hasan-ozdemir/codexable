@@ -738,25 +738,36 @@ impl TextArea {
     }
 
     pub fn move_cursor_to_visual_line_start(&mut self) {
-        if let Some(cache) = self.wrap_cache.borrow().as_ref() {
-            if let Some(idx) = Self::wrapped_line_index_by_start(&cache.lines, self.cursor_pos) {
-                let start = cache.lines[idx].start;
-                self.set_cursor(start);
-                self.preferred_col = None;
-                return;
-            }
+        if let Some(start) = {
+            let cache_ref = self.wrap_cache.borrow();
+            cache_ref.as_ref().and_then(|cache| {
+                Self::wrapped_line_index_by_start(&cache.lines, self.cursor_pos)
+                    .map(|idx| cache.lines[idx].start)
+            })
+        } {
+            self.set_cursor(start);
+            self.preferred_col = None;
+            return;
         }
         self.move_cursor_to_beginning_of_line(false);
     }
 
     pub fn move_cursor_to_visual_line_end(&mut self) {
-        if let Some(cache) = self.wrap_cache.borrow().as_ref() {
-            if let Some(idx) = Self::wrapped_line_index_by_start(&cache.lines, self.cursor_pos) {
-                let end = cache.lines[idx].end.min(self.text.len());
-                self.set_cursor(end);
-                self.preferred_col = None;
-                return;
-            }
+        if let Some(end) = {
+            let cache_ref = self.wrap_cache.borrow();
+            cache_ref.as_ref().and_then(|cache| {
+                Self::wrapped_line_index_by_start(&cache.lines, self.cursor_pos).map(|idx| {
+                    let mut e = cache.lines[idx].end.min(self.text.len());
+                    if e > 0 && self.text.as_bytes().get(e.saturating_sub(1)) == Some(&b'\n') {
+                        e = e.saturating_sub(1);
+                    }
+                    e
+                })
+            })
+        } {
+            self.set_cursor(end);
+            self.preferred_col = None;
+            return;
         }
         self.move_cursor_to_end_of_line(false);
     }
