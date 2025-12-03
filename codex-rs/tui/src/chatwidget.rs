@@ -440,10 +440,10 @@ impl ChatWidget {
     }
 
     fn on_agent_message_delta(&mut self, delta: String) {
-        self.handle_streaming_delta(delta);
         if delta.contains('\n') {
             self.bottom_pane.notify_extensions("line_end");
         }
+        self.handle_streaming_delta(delta);
     }
 
     fn on_agent_reasoning_delta(&mut self, delta: String) {

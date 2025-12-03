@@ -489,6 +489,7 @@ impl ExtensionHost {
             align_left: None,
             editor_borderline: None,
             a11y_keyboard_shortcuts: None,
+            a11y_audio_cues: None,
         };
 
         let mut cfg = scripts.iter().fold(cfg, |mut acc, script| {
