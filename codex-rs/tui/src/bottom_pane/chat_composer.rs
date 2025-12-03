@@ -1643,6 +1643,24 @@ impl ChatComposer {
                 return true;
             }
             KeyEvent {
+                code: Home,
+                modifiers: Mods::NONE,
+                ..
+            } => {
+                self.textarea
+                    .move_cursor_to_beginning_of_line(false /* stay on line */);
+                return true;
+            }
+            KeyEvent {
+                code: End,
+                modifiers: Mods::NONE,
+                ..
+            } => {
+                self.textarea
+                    .move_cursor_to_end_of_line(false /* stay on line */);
+                return true;
+            }
+            KeyEvent {
                 code: Right,
                 modifiers: Mods::CONTROL,
                 ..
