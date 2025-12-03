@@ -1595,6 +1595,8 @@ impl ChatComposer {
         use KeyCode::*;
         use KeyModifiers as Mods;
 
+        let plain_or_shift = |m: Mods| m == Mods::NONE || m == Mods::SHIFT;
+
         match *key {
             KeyEvent {
                 code: Delete,
@@ -1644,21 +1646,25 @@ impl ChatComposer {
             }
             KeyEvent {
                 code: Home,
-                modifiers: Mods::NONE,
+                modifiers,
                 ..
             } => {
-                self.textarea
-                    .move_cursor_to_beginning_of_line(false /* stay on line */);
-                return true;
+                if plain_or_shift(modifiers) {
+                    self.textarea
+                        .move_cursor_to_beginning_of_line(false /* stay on line */);
+                    return true;
+                }
             }
             KeyEvent {
                 code: End,
-                modifiers: Mods::NONE,
+                modifiers,
                 ..
             } => {
-                self.textarea
-                    .move_cursor_to_end_of_line(false /* stay on line */);
-                return true;
+                if plain_or_shift(modifiers) {
+                    self.textarea
+                        .move_cursor_to_end_of_line(false /* stay on line */);
+                    return true;
+                }
             }
             KeyEvent {
                 code: Right,
