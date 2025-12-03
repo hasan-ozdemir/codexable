@@ -46,6 +46,7 @@ pub(crate) struct ExtensionConfig {
     pub align_left: Option<bool>,
     pub editor_borderline: Option<bool>,
     pub a11y_keyboard_shortcuts: Option<bool>,
+    pub a11y_audio_cues: Option<bool>,
 }
 
 #[derive(Default)]
@@ -62,6 +63,7 @@ struct ConfigDelta {
     align_left: Option<bool>,
     editor_borderline: Option<bool>,
     a11y_keyboard_shortcuts: Option<bool>,
+    a11y_audio_cues: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -193,6 +195,13 @@ impl ExtensionHost {
 
     pub(crate) fn config(&self) -> &ExtensionConfig {
         &self.config
+    }
+
+    pub(crate) fn notify_event(&self, event: &str) {
+        for script in &self.scripts {
+            let request = Self::build_request("notify", json!({ "event": event }), &self.log_path);
+            let _ = Self::run_script(script, "notify", request, &self.log_path);
+        }
     }
 
     pub(crate) fn history_push(&self, text: &str) {
@@ -528,6 +537,9 @@ impl ExtensionHost {
                 if let Some(v) = parsed.a11y_keyboard_shortcuts {
                     acc.a11y_keyboard_shortcuts = Some(v);
                 }
+                if let Some(v) = parsed.a11y_audio_cues {
+                    acc.a11y_audio_cues = Some(v);
+                }
             }
             acc
         });
@@ -591,6 +603,12 @@ impl ExtensionHost {
         }
         if let Some(v) = obj.get("a11y_keyboard_shortcuts").and_then(Value::as_bool) {
             cfg.a11y_keyboard_shortcuts = Some(v);
+        }
+        if let Some(v) = obj.get("a11y_audio_cues").and_then(Value::as_bool) {
+            cfg.a11y_audio_cues = Some(v);
+        }
+        if let Some(v) = obj.get("a11y_audio_cues").and_then(Value::as_bool) {
+            cfg.a11y_audio_cues = Some(v);
         }
 
         Some(cfg)

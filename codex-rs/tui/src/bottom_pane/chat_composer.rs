@@ -525,6 +525,10 @@ impl ChatComposer {
         !matches!(self.active_popup, ActivePopup::None)
     }
 
+    pub(crate) fn notify_extensions(&self, event: &str) {
+        self.extension_host.notify_event(event);
+    }
+
     /// Handle key event when the slash-command popup is visible.
     fn handle_key_event_with_slash_popup(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
         if self.handle_shortcut_overlay_key(&key_event) {

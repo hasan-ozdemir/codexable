@@ -29,8 +29,48 @@ function handleConfig() {
       align_left: parseBoolEnv("a11y_editor_align_left", false),
       editor_borderline: parseBoolEnv("a11y_editor_borderline", false),
       a11y_keyboard_shortcuts: parseBoolEnv("a11y_keyboard_shortcuts", false),
+      a11y_audio_cues: parseBoolEnv("a11y_audio_cues", false),
     },
   });
+}
+
+function playSound(file) {
+  const path = require("path");
+  const { spawnSync } = require("child_process");
+  const full = path.join(__dirname, "sounds", file);
+  spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `(New-Object Media.SoundPlayer '${full.replace(/'/g, "''")}').PlaySync()`,
+    ],
+    { stdio: "ignore" }
+  );
+}
+
+function handleNotify(payload) {
+  if (!parseBoolEnv("a11y_audio_cues", false)) {
+    respond({ status: "skip" });
+    return;
+  }
+  const event = payload && payload.event;
+  if (!event) {
+    respond({ status: "error", message: "missing event" });
+    return;
+  }
+  if (event === "line_end") {
+    playSound("PushButtonUp.wav");
+    respond({ status: "ok" });
+    return;
+  }
+  if (event === "completion_end") {
+    playSound("ascend.wav");
+    respond({ status: "ok" });
+    return;
+  }
+  respond({ status: "skip" });
 }
 
 function main() {
@@ -46,6 +86,8 @@ function main() {
   switch (req.action) {
     case "config":
       return handleConfig();
+    case "notify":
+      return handleNotify(req.payload || {});
     default:
       respond({ status: "skip" });
   }

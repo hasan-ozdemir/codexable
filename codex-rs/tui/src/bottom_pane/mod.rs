@@ -251,6 +251,10 @@ impl BottomPane {
         self.composer.current_text()
     }
 
+    pub(crate) fn notify_extensions(&self, event: &str) {
+        self.composer.notify_extensions(event);
+    }
+
     /// Update the animated header shown to the left of the brackets in the
     /// status indicator (defaults to "Working"). No-ops if the status
     /// indicator is not active.
