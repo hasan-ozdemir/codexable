@@ -310,6 +310,9 @@ pub(crate) struct ChatWidget {
     pending_notification: Option<Notification>,
     // Simple review mode flag; used to adjust layout and banners.
     is_review_mode: bool,
+    // Require an explicit user prompt before enabling audio cues to avoid
+    // replay/startup noise.
+    audio_cues_armed: bool,
     // Avoid firing audio cues until first agent stream starts.
     audio_cues_ready: bool,
     // Snapshot of token usage to restore after review mode exits.
@@ -432,11 +435,11 @@ impl ChatWidget {
         self.request_redraw();
     }
 
-    fn on_agent_message(&mut self, message: String) {
+    fn on_agent_message(&mut self, message: String, from_replay: bool) {
         // If we have a stream_controller, then the final agent message is redundant and will be a
         // duplicate of what has already been streamed.
         if self.stream_controller.is_none() {
-            self.handle_streaming_delta(message);
+            self.handle_streaming_delta(message, from_replay);
         }
         self.flush_answer_stream_with_separator();
         self.handle_stream_finished();
@@ -446,11 +449,11 @@ impl ChatWidget {
         self.request_redraw();
     }
 
-    fn on_agent_message_delta(&mut self, delta: String) {
+    fn on_agent_message_delta(&mut self, delta: String, from_replay: bool) {
         if delta.contains('\n') && self.audio_cues_ready {
             self.bottom_pane.notify_extensions("line_end");
         }
-        self.handle_streaming_delta(delta);
+        self.handle_streaming_delta(delta, from_replay);
     }
 
     fn on_agent_reasoning_delta(&mut self, delta: String) {
@@ -978,11 +981,11 @@ impl ChatWidget {
     }
 
     #[inline]
-    fn handle_streaming_delta(&mut self, delta: String) {
+    fn handle_streaming_delta(&mut self, delta: String, from_replay: bool) {
         // Before streaming agent content, flush any active exec cell group.
         self.flush_active_cell();
 
-        if !self.audio_cues_ready {
+        if !self.audio_cues_ready && self.audio_cues_armed && !from_replay {
             self.audio_cues_ready = true;
         }
 
@@ -1296,6 +1299,7 @@ impl ChatWidget {
             suppress_session_configured_redraw: false,
             pending_notification: None,
             is_review_mode: false,
+            audio_cues_armed: false,
             audio_cues_ready: false,
             pre_review_token_info: None,
             needs_final_message_separator: false,
@@ -1374,6 +1378,7 @@ impl ChatWidget {
             suppress_session_configured_redraw: true,
             pending_notification: None,
             is_review_mode: false,
+            audio_cues_armed: false,
             audio_cues_ready: false,
             pre_review_token_info: None,
             needs_final_message_separator: false,
@@ -1671,6 +1676,8 @@ impl ChatWidget {
             return;
         }
 
+        self.audio_cues_armed = true;
+
         let mut items: Vec<UserInput> = Vec::new();
 
         // Special-case: "!cmd" executes a local shell command instead of sending to the model.
@@ -1758,9 +1765,11 @@ impl ChatWidget {
 
         match msg {
             EventMsg::SessionConfigured(e) => self.on_session_configured(e),
-            EventMsg::AgentMessage(AgentMessageEvent { message }) => self.on_agent_message(message),
+            EventMsg::AgentMessage(AgentMessageEvent { message }) => {
+                self.on_agent_message(message, from_replay)
+            }
             EventMsg::AgentMessageDelta(AgentMessageDeltaEvent { delta }) => {
-                self.on_agent_message_delta(delta)
+                self.on_agent_message_delta(delta, from_replay)
             }
             EventMsg::AgentReasoningDelta(AgentReasoningDeltaEvent { delta })
             | EventMsg::AgentReasoningRawContentDelta(AgentReasoningRawContentDeltaEvent {
@@ -1839,7 +1848,9 @@ impl ChatWidget {
                 self.on_entered_review_mode(review_request)
             }
             EventMsg::ExitedReviewMode(review) => self.on_exited_review_mode(review),
-            EventMsg::ContextCompacted(_) => self.on_agent_message("Context compacted".to_owned()),
+            EventMsg::ContextCompacted(_) => {
+                self.on_agent_message("Context compacted".to_owned(), from_replay)
+            }
             EventMsg::RawResponseItem(_)
             | EventMsg::ItemStarted(_)
             | EventMsg::ItemCompleted(_)
