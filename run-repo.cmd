@@ -14,6 +14,7 @@ if "%REPO_ROOT:~-1%"=="\" set "REPO_ROOT=%REPO_ROOT:~0,-1%"
 
 rem Env for dev run
 set "CODEX_TUI_EXTENSION_DIR=%REPO_ROOT%\extensions"
+set "PATH=%REPO_ROOT%\codex-rs\bin;%PATH%"
 set "codex_extensions_log=true"
 set "AZURE_AI_API_KEY=[REDACTED_AZURE_KEY]"
 rem Accessibility defaults (can be overridden by caller)
@@ -99,8 +100,7 @@ if %profile_count% GTR 1 (
 )
 
 cls
-rem Build CLI args explicitly so none are dropped
-set "CALLDIR=%cd%"
+set "CALLDIR=%REPO_ROOT%\codex-rs"
 set "CLI_ARGS="
 if defined resume_cmd set "CLI_ARGS=!CLI_ARGS! !resume_cmd!"
 set "CLI_ARGS=!CLI_ARGS! --cd \"!CALLDIR!\""
@@ -108,7 +108,7 @@ if defined profile set "CLI_ARGS=!CLI_ARGS! !profile!"
 set "CLI_ARGS=!CLI_ARGS! -s danger-full-access -a never"
 if defined search_flag set "CLI_ARGS=!CLI_ARGS! !search_flag!"
 
-pushd "%REPO_ROOT%\\codex-rs" >nul
+pushd "%REPO_ROOT%\codex-rs" >nul
 cargo run -p codex-cli -- !CLI_ARGS!
 set "EXITCODE=%ERRORLEVEL%"
 popd >nul
