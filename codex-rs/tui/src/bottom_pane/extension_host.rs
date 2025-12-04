@@ -32,11 +32,15 @@ pub(crate) struct ExtensionHost {
     session_path: RefCell<Option<PathBuf>>,
 }
 
+const HISTORY_PAGE_JUMP: usize = 10;
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ExtensionConfig {
     pub external_edit_keys: Vec<KeyBinding>,
     pub history_prev_keys: Vec<KeyBinding>,
     pub history_next_keys: Vec<KeyBinding>,
+    pub history_prev_page_keys: Vec<KeyBinding>,
+    pub history_next_page_keys: Vec<KeyBinding>,
     pub history_first_keys: Vec<KeyBinding>,
     pub history_last_keys: Vec<KeyBinding>,
     pub editor_command: Option<Vec<String>>,
@@ -54,6 +58,8 @@ struct ConfigDelta {
     external_edit_keys: Option<Vec<KeyBinding>>,
     history_prev_keys: Option<Vec<KeyBinding>>,
     history_next_keys: Option<Vec<KeyBinding>>,
+    history_prev_page_keys: Option<Vec<KeyBinding>>,
+    history_next_page_keys: Option<Vec<KeyBinding>>,
     history_first_keys: Option<Vec<KeyBinding>>,
     history_last_keys: Option<Vec<KeyBinding>>,
     editor_command: Option<Vec<String>>,
@@ -272,6 +278,30 @@ impl ExtensionHost {
     }
 
     #[cfg_attr(test, allow(dead_code))]
+    pub(crate) fn history_prev_page(&self) -> Option<String> {
+        self.history_jump(|| self.history_prev())
+    }
+
+    #[cfg_attr(test, allow(dead_code))]
+    pub(crate) fn history_next_page(&self) -> Option<String> {
+        self.history_jump(|| self.history_next())
+    }
+
+    fn history_jump<F>(&self, mut step: F) -> Option<String>
+    where
+        F: FnMut() -> Option<String>,
+    {
+        let mut last: Option<String> = None;
+        for _ in 0..HISTORY_PAGE_JUMP {
+            match step() {
+                Some(text) => last = Some(text),
+                None => break,
+            }
+        }
+        last
+    }
+
+    #[cfg_attr(test, allow(dead_code))]
     fn history_lookup(&self, action: &str) -> Option<String> {
         let reply = self.invoke_first(action, json!({}));
         match reply {
@@ -467,19 +497,13 @@ impl ExtensionHost {
         let cfg = ExtensionConfig {
             external_edit_keys: vec![KeyBinding::ctrl_char('e')],
             history_prev_keys: vec![
-                KeyBinding {
-                    code: KeyCode::Up,
-                    modifiers: KeyModifiers::NONE,
-                },
-                KeyBinding::alt_code(KeyCode::PageUp),
+                KeyBinding::alt_code(KeyCode::Up),
             ],
             history_next_keys: vec![
-                KeyBinding {
-                    code: KeyCode::Down,
-                    modifiers: KeyModifiers::NONE,
-                },
-                KeyBinding::alt_code(KeyCode::PageDown),
+                KeyBinding::alt_code(KeyCode::Down),
             ],
+            history_prev_page_keys: vec![KeyBinding::alt_code(KeyCode::PageUp)],
+            history_next_page_keys: vec![KeyBinding::alt_code(KeyCode::PageDown)],
             history_first_keys: vec![KeyBinding::alt_code(KeyCode::Home)],
             history_last_keys: vec![KeyBinding::alt_code(KeyCode::End)],
             editor_command: None,
@@ -492,7 +516,7 @@ impl ExtensionHost {
             a11y_audio_cues: None,
         };
 
-        let mut cfg = scripts.iter().fold(cfg, |mut acc, script| {
+        let cfg = scripts.iter().fold(cfg, |mut acc, script| {
             let log_path = Self::default_log_path();
             let request = Self::build_request("config", json!({}), &log_path);
             let response = Self::run_script(script, "config", request, &log_path);
@@ -510,6 +534,12 @@ impl ExtensionHost {
                 }
                 if let Some(v) = parsed.history_next_keys {
                     acc.history_next_keys = v;
+                }
+                if let Some(v) = parsed.history_prev_page_keys {
+                    acc.history_prev_page_keys = v;
+                }
+                if let Some(v) = parsed.history_next_page_keys {
+                    acc.history_next_page_keys = v;
                 }
                 if let Some(v) = parsed.history_first_keys {
                     acc.history_first_keys = v;
@@ -545,16 +575,10 @@ impl ExtensionHost {
             acc
         });
 
-        Self::ensure_history_binding(&mut cfg.history_prev_keys, KeyCode::Up, KeyModifiers::NONE);
-        Self::ensure_history_binding(
-            &mut cfg.history_next_keys,
-            KeyCode::Down,
-            KeyModifiers::NONE,
-        );
-
         cfg
     }
 
+    #[allow(dead_code)]
     fn ensure_history_binding(keys: &mut Vec<KeyBinding>, code: KeyCode, modifiers: KeyModifiers) {
         if keys
             .iter()
@@ -577,6 +601,12 @@ impl ExtensionHost {
         }
         if let Some(keys) = obj.get("history_next_keys") {
             cfg.history_next_keys = Some(Self::parse_key_list(keys));
+        }
+        if let Some(keys) = obj.get("history_prev_page_keys") {
+            cfg.history_prev_page_keys = Some(Self::parse_key_list(keys));
+        }
+        if let Some(keys) = obj.get("history_next_page_keys") {
+            cfg.history_next_page_keys = Some(Self::parse_key_list(keys));
         }
         if let Some(keys) = obj.get("history_first_keys") {
             cfg.history_first_keys = Some(Self::parse_key_list(keys));

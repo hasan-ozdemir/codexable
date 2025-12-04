@@ -136,6 +136,8 @@ struct ExtensionKeyConfig {
     external_edit: Vec<KeyBinding>,
     history_prev: Vec<KeyBinding>,
     history_next: Vec<KeyBinding>,
+    history_prev_page: Vec<KeyBinding>,
+    history_next_page: Vec<KeyBinding>,
     history_first: Vec<KeyBinding>,
     history_last: Vec<KeyBinding>,
 }
@@ -1058,6 +1060,9 @@ impl ChatComposer {
                         .log_event("Applied history_prev text to textarea");
                     return (InputResult::None, true);
                 }
+                if self.a11y_keyboard_shortcuts {
+                    return self.handle_input_basic(input);
+                }
                 if self
                     .history
                     .should_handle_navigation(self.textarea.text(), self.textarea.cursor())
@@ -1074,6 +1079,16 @@ impl ChatComposer {
                 }
                 self.handle_input_basic(input)
             }
+            input if self.matches_history_prev_page(&input) => {
+                self.extension_host.log_event("Key matched history_prev_page");
+                if let Some(text) = self.extension_history_navigation(KeyCode::PageUp) {
+                    self.set_text_content(text);
+                    self.extension_host
+                        .log_event("Applied history_prev_page text to textarea");
+                    return (InputResult::None, true);
+                }
+                self.handle_input_basic(input)
+            }
             input if self.matches_history_next(&input) => {
                 self.extension_host.log_event("Key matched history_next");
                 if let Some(text) = self.extension_history_navigation(KeyCode::Down) {
@@ -1081,6 +1096,9 @@ impl ChatComposer {
                     self.extension_host
                         .log_event("Applied history_next text to textarea");
                     return (InputResult::None, true);
+                }
+                if self.a11y_keyboard_shortcuts {
+                    return self.handle_input_basic(input);
                 }
                 if self
                     .history
@@ -1096,6 +1114,16 @@ impl ChatComposer {
                     self.set_text_content(text);
                     self.extension_host
                         .log_event("Applied history_next text to textarea");
+                    return (InputResult::None, true);
+                }
+                self.handle_input_basic(input)
+            }
+            input if self.matches_history_next_page(&input) => {
+                self.extension_host.log_event("Key matched history_next_page");
+                if let Some(text) = self.extension_history_navigation(KeyCode::PageDown) {
+                    self.set_text_content(text);
+                    self.extension_host
+                        .log_event("Applied history_next_page text to textarea");
                     return (InputResult::None, true);
                 }
                 self.handle_input_basic(input)
@@ -1247,6 +1275,8 @@ impl ChatComposer {
         let text = match code {
             KeyCode::Up => self.extension_host.history_prev(),
             KeyCode::Down => self.extension_host.history_next(),
+            KeyCode::PageUp => self.extension_host.history_prev_page(),
+            KeyCode::PageDown => self.extension_host.history_next_page(),
             KeyCode::Home => self.extension_host.history_first(),
             KeyCode::End => self.extension_host.history_last(),
             _ => None,
@@ -1260,6 +1290,8 @@ impl ChatComposer {
             external_edit: cfg.external_edit_keys.clone(),
             history_prev: cfg.history_prev_keys.clone(),
             history_next: cfg.history_next_keys.clone(),
+            history_prev_page: cfg.history_prev_page_keys.clone(),
+            history_next_page: cfg.history_next_page_keys.clone(),
             history_first: cfg.history_first_keys.clone(),
             history_last: cfg.history_last_keys.clone(),
         }
@@ -1294,6 +1326,9 @@ impl ChatComposer {
     }
 
     fn matches_history_prev(&self, key: &KeyEvent) -> bool {
+        if self.a11y_keyboard_shortcuts && key.modifiers.is_empty() {
+            return false;
+        }
         self.extension_keys
             .history_prev
             .iter()
@@ -1301,8 +1336,25 @@ impl ChatComposer {
     }
 
     fn matches_history_next(&self, key: &KeyEvent) -> bool {
+        if self.a11y_keyboard_shortcuts && key.modifiers.is_empty() {
+            return false;
+        }
         self.extension_keys
             .history_next
+            .iter()
+            .any(|kb| kb.matches(key))
+    }
+
+    fn matches_history_prev_page(&self, key: &KeyEvent) -> bool {
+        self.extension_keys
+            .history_prev_page
+            .iter()
+            .any(|kb| kb.matches(key))
+    }
+
+    fn matches_history_next_page(&self, key: &KeyEvent) -> bool {
+        self.extension_keys
+            .history_next_page
             .iter()
             .any(|kb| kb.matches(key))
     }
