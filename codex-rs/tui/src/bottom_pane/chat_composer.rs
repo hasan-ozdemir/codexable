@@ -129,6 +129,7 @@ pub(crate) struct ChatComposer {
     align_left: bool,
     editor_borderline: bool,
     a11y_keyboard_shortcuts: bool,
+    a11y_audio_cues: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -212,6 +213,9 @@ impl ChatComposer {
             a11y_keyboard_shortcuts: cfg
                 .a11y_keyboard_shortcuts
                 .unwrap_or_else(|| env_bool("a11y_keyboard_shortcuts", false)),
+            a11y_audio_cues: cfg
+                .a11y_audio_cues
+                .unwrap_or_else(|| env_bool("a11y_audio_cues", false)),
         };
         this.extension_keys = this.load_extension_keys();
         // Apply configuration via the setter to keep side-effects centralized.
@@ -528,6 +532,9 @@ impl ChatComposer {
     }
 
     pub(crate) fn notify_extensions(&self, event: &str) {
+        if !self.a11y_audio_cues {
+            return;
+        }
         self.extension_host.notify_event(event);
     }
 
@@ -1080,7 +1087,8 @@ impl ChatComposer {
                 self.handle_input_basic(input)
             }
             input if self.matches_history_prev_page(&input) => {
-                self.extension_host.log_event("Key matched history_prev_page");
+                self.extension_host
+                    .log_event("Key matched history_prev_page");
                 if let Some(text) = self.extension_history_navigation(KeyCode::PageUp) {
                     self.set_text_content(text);
                     self.extension_host
@@ -1119,7 +1127,8 @@ impl ChatComposer {
                 self.handle_input_basic(input)
             }
             input if self.matches_history_next_page(&input) => {
-                self.extension_host.log_event("Key matched history_next_page");
+                self.extension_host
+                    .log_event("Key matched history_next_page");
                 if let Some(text) = self.extension_history_navigation(KeyCode::PageDown) {
                     self.set_text_content(text);
                     self.extension_host
@@ -1326,7 +1335,7 @@ impl ChatComposer {
     }
 
     fn matches_history_prev(&self, key: &KeyEvent) -> bool {
-        if self.a11y_keyboard_shortcuts && key.modifiers.is_empty() {
+        if self.a11y_keyboard_shortcuts && key.code == KeyCode::Up && key.modifiers.is_empty() {
             return false;
         }
         self.extension_keys
@@ -1336,7 +1345,7 @@ impl ChatComposer {
     }
 
     fn matches_history_next(&self, key: &KeyEvent) -> bool {
-        if self.a11y_keyboard_shortcuts && key.modifiers.is_empty() {
+        if self.a11y_keyboard_shortcuts && key.code == KeyCode::Down && key.modifiers.is_empty() {
             return false;
         }
         self.extension_keys

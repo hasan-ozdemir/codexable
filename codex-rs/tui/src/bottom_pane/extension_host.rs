@@ -496,12 +496,8 @@ impl ExtensionHost {
     fn load_config(scripts: &[PathBuf]) -> ExtensionConfig {
         let cfg = ExtensionConfig {
             external_edit_keys: vec![KeyBinding::ctrl_char('e')],
-            history_prev_keys: vec![
-                KeyBinding::alt_code(KeyCode::Up),
-            ],
-            history_next_keys: vec![
-                KeyBinding::alt_code(KeyCode::Down),
-            ],
+            history_prev_keys: vec![KeyBinding::alt_code(KeyCode::Up)],
+            history_next_keys: vec![KeyBinding::alt_code(KeyCode::Down)],
             history_prev_page_keys: vec![KeyBinding::alt_code(KeyCode::PageUp)],
             history_next_page_keys: vec![KeyBinding::alt_code(KeyCode::PageDown)],
             history_first_keys: vec![KeyBinding::alt_code(KeyCode::Home)],
@@ -516,7 +512,7 @@ impl ExtensionHost {
             a11y_audio_cues: None,
         };
 
-        let cfg = scripts.iter().fold(cfg, |mut acc, script| {
+        let mut cfg = scripts.iter().fold(cfg, |mut acc, script| {
             let log_path = Self::default_log_path();
             let request = Self::build_request("config", json!({}), &log_path);
             let response = Self::run_script(script, "config", request, &log_path);
@@ -574,6 +570,13 @@ impl ExtensionHost {
             }
             acc
         });
+
+        Self::ensure_history_binding(&mut cfg.history_prev_keys, KeyCode::Up, KeyModifiers::NONE);
+        Self::ensure_history_binding(
+            &mut cfg.history_next_keys,
+            KeyCode::Down,
+            KeyModifiers::NONE,
+        );
 
         cfg
     }
