@@ -358,6 +358,7 @@ impl ChatWidget {
         if let Some(mut controller) = self.stream_controller.take()
             && let Some(cell) = controller.finalize()
         {
+            self.bottom_pane.notify_extensions("line_end");
             self.add_boxed_history(cell);
         }
     }
@@ -928,6 +929,7 @@ impl ChatWidget {
             let (cell, is_idle) = controller.on_commit_tick();
             if let Some(cell) = cell {
                 self.bottom_pane.hide_status_indicator();
+                self.bottom_pane.notify_extensions("line_end");
                 self.add_boxed_history(cell);
             }
             if is_idle {

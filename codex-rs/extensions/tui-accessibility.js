@@ -8,6 +8,18 @@
  * hard-coding them in the Rust layer.
  */
 
+let LOG_PATH = null;
+
+function log(msg) {
+  if (!LOG_PATH) return;
+  try {
+    const ts = Date.now() / 1000;
+    require("fs").appendFileSync(LOG_PATH, `${ts.toFixed(3)} [a11y] ${msg}\n`);
+  } catch (err) {
+    // best-effort logging only
+  }
+}
+
 function respond(obj) {
   console.log(JSON.stringify(obj));
 }
@@ -38,7 +50,7 @@ function playSound(file) {
   const path = require("path");
   const { spawnSync } = require("child_process");
   const full = path.join(__dirname, "sounds", file);
-  spawnSync(
+  const result = spawnSync(
     "powershell.exe",
     [
       "-NoProfile",
@@ -48,28 +60,45 @@ function playSound(file) {
     ],
     { stdio: "ignore" }
   );
+  if (result.error || result.status !== 0) {
+    log(`playSound failed for ${file}: ${result.error || "status " + result.status}`);
+    const fb = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", "[console]::beep(880,120)"],
+      { stdio: "ignore" }
+    );
+    if (fb.error || fb.status !== 0) {
+      log(`fallback beep failed: ${fb.error || "status " + fb.status}`);
+      return false;
+    }
+  }
+  return true;
 }
 
 function handleNotify(payload) {
   if (!parseBoolEnv("a11y_audio_cues", false)) {
+    log("notify skipped: a11y_audio_cues disabled");
     respond({ status: "skip" });
     return;
   }
   const event = payload && payload.event;
   if (!event) {
+    log("notify error: missing event");
     respond({ status: "error", message: "missing event" });
     return;
   }
+  log(`notify event=${event}`);
   if (event === "line_end") {
-    playSound("PushButtonUp.wav");
-    respond({ status: "ok" });
+    const ok = playSound("PushButtonUp.wav");
+    respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;
   }
   if (event === "completion_end") {
-    playSound("ascend.wav");
-    respond({ status: "ok" });
+    const ok = playSound("ascend.wav");
+    respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;
   }
+  log(`notify skip: unknown event ${event}`);
   respond({ status: "skip" });
 }
 
@@ -82,6 +111,8 @@ function main() {
     respond({ status: "error", message: `invalid request: ${String(err)}` });
     return;
   }
+
+  LOG_PATH = req.log_path || null;
 
   switch (req.action) {
     case "config":
