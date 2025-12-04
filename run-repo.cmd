@@ -99,12 +99,17 @@ if %profile_count% GTR 1 (
 )
 
 cls
+rem Build CLI args explicitly so none are dropped
+set "CALLDIR=%cd%"
+set "CLI_ARGS="
+if defined resume_cmd set "CLI_ARGS=!CLI_ARGS! !resume_cmd!"
+set "CLI_ARGS=!CLI_ARGS! --cd \"!CALLDIR!\""
+if defined profile set "CLI_ARGS=!CLI_ARGS! !profile!"
+set "CLI_ARGS=!CLI_ARGS! -s danger-full-access -a never"
+if defined search_flag set "CLI_ARGS=!CLI_ARGS! !search_flag!"
+
 pushd "%REPO_ROOT%\\codex-rs" >nul
-if defined resume_cmd (
-    cargo run -p codex-cli -- !resume_cmd! --cd "%cd%" !profile! -s danger-full-access -a never !search_flag!
-) else (
-    cargo run -p codex-cli -- --cd "%cd%" !profile! -s danger-full-access -a never !search_flag!
-)
+cargo run -p codex-cli -- !CLI_ARGS!
 set "EXITCODE=%ERRORLEVEL%"
 popd >nul
 endlocal & exit /b %EXITCODE%
