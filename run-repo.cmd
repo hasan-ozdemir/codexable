@@ -100,15 +100,15 @@ if %profile_count% GTR 1 (
 
 cls
 set "CALLDIR=%REPO_ROOT%"
-set "CLI_ARGS="
-if defined resume_cmd set "CLI_ARGS=!CLI_ARGS! !resume_cmd!"
-set "CLI_ARGS=!CLI_ARGS! --cd \"!CALLDIR!\""
-if defined profile set "CLI_ARGS=!CLI_ARGS! !profile!"
-set "CLI_ARGS=!CLI_ARGS! -s danger-full-access -a never"
-if defined search_flag set "CLI_ARGS=!CLI_ARGS! !search_flag!"
+set "RESUME_ARGS="
+if defined resume_cmd set "RESUME_ARGS=%resume_cmd%"
+set "PROFILE_ARGS="
+if defined profile set "PROFILE_ARGS=%profile%"
+set "SEARCH_ARGS="
+if defined search_flag set "SEARCH_ARGS=%search_flag%"
 
 pushd "%REPO_ROOT%\codex-rs" >nul
-cargo run -p codex-cli -- !CLI_ARGS!
+cargo run -p codex-cli -- %RESUME_ARGS% --cd "%CALLDIR%" %PROFILE_ARGS% -s danger-full-access -a never %SEARCH_ARGS%
 set "EXITCODE=%ERRORLEVEL%"
 popd >nul
 endlocal & exit /b %EXITCODE%
