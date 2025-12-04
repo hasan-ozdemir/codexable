@@ -982,7 +982,7 @@ impl ChatWidget {
         // Before streaming agent content, flush any active exec cell group.
         self.flush_active_cell();
 
-        if self.config.bottom_pane.a11y_audio_cues && !self.audio_cues_ready {
+        if !self.audio_cues_ready {
             self.audio_cues_ready = true;
         }
 
