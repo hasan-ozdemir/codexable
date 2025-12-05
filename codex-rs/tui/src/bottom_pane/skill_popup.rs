@@ -12,12 +12,14 @@ use crate::render::RectExt;
 use codex_common::fuzzy_match::fuzzy_match;
 use codex_core::skills::model::SkillMetadata;
 
+#[allow(dead_code)]
 pub(crate) struct SkillPopup {
     query: String,
     skills: Vec<SkillMetadata>,
     state: ScrollState,
 }
 
+#[allow(dead_code)]
 impl SkillPopup {
     pub(crate) fn new(skills: Vec<SkillMetadata>) -> Self {
         Self {

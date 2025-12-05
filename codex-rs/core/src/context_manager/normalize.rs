@@ -22,9 +22,9 @@ pub(crate) fn ensure_call_outputs_present(items: &mut Vec<ResponseItem>) {
                 });
 
                 if !has_output {
-                    error_or_panic(format!(
-                        "Function call output is missing for call id: {call_id}"
-                    ));
+                    tracing::warn!(
+                        "Function call output is missing for call id: {call_id}; inserting synthetic aborted output"
+                    );
                     missing_outputs_to_insert.push((
                         idx,
                         ResponseItem::FunctionCallOutput {
@@ -46,9 +46,9 @@ pub(crate) fn ensure_call_outputs_present(items: &mut Vec<ResponseItem>) {
                 });
 
                 if !has_output {
-                    error_or_panic(format!(
-                        "Custom tool call output is missing for call id: {call_id}"
-                    ));
+                    tracing::warn!(
+                        "Custom tool call output is missing for call id: {call_id}; inserting synthetic aborted output"
+                    );
                     missing_outputs_to_insert.push((
                         idx,
                         ResponseItem::CustomToolCallOutput {
@@ -69,9 +69,9 @@ pub(crate) fn ensure_call_outputs_present(items: &mut Vec<ResponseItem>) {
                     });
 
                     if !has_output {
-                        error_or_panic(format!(
-                            "Local shell call output is missing for call id: {call_id}"
-                        ));
+                        tracing::warn!(
+                            "Local shell call output is missing for call id: {call_id}; inserting synthetic aborted output"
+                        );
                         missing_outputs_to_insert.push((
                             idx,
                             ResponseItem::FunctionCallOutput {
