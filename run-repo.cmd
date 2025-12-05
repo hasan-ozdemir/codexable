@@ -108,7 +108,7 @@ set "SEARCH_ARGS="
 if defined search_flag set "SEARCH_ARGS=%search_flag%"
 
 pushd "%REPO_ROOT%\codex-rs" >nul
-cargo run -p codex-cli -- %RESUME_ARGS% --cd "%CALLDIR%" %PROFILE_ARGS% -s danger-full-access -a never %SEARCH_ARGS%
+cargo run -p codex-cli -- %RESUME_ARGS% --cd "%CALLDIR%" %PROFILE_ARGS% --dangerously-bypass-approvals-and-sandbox %SEARCH_ARGS%
 set "EXITCODE=%ERRORLEVEL%"
 popd >nul
 endlocal & exit /b %EXITCODE%
