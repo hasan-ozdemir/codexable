@@ -64,9 +64,11 @@ impl StreamController {
     }
 
     /// Step animation: commit at most one queued line and handle end-of-drain cleanup.
-    pub(crate) fn on_commit_tick(&mut self) -> (Option<Box<dyn HistoryCell>>, bool) {
+    /// Returns (emitted_cell, emitted_line_count, is_idle)
+    pub(crate) fn on_commit_tick(&mut self) -> (Option<Box<dyn HistoryCell>>, usize, bool) {
         let step = self.state.step();
-        (self.emit(step), self.state.is_idle())
+        let line_count = step.len();
+        (self.emit(step), line_count, self.state.is_idle())
     }
 
     fn emit(&mut self, lines: Vec<Line<'static>>) -> Option<Box<dyn HistoryCell>> {

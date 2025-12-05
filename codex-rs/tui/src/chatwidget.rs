@@ -360,13 +360,16 @@ fn create_initial_user_message(text: String, image_paths: Vec<PathBuf>) -> Optio
 
 impl ChatWidget {
     fn flush_answer_stream_with_separator(&mut self) {
-        if let Some(mut controller) = self.stream_controller.take()
-            && let Some(cell) = controller.finalize()
-        {
-            if self.audio_cues_ready {
-                self.bottom_pane.notify_extensions("line_added");
+        if let Some(mut controller) = self.stream_controller.take() {
+            if let Some(cell) = controller.finalize() {
+                if self.audio_cues_ready {
+                    let lines = cell.display_lines(u16::MAX).len();
+                    for _ in 0..lines.max(1) {
+                        self.bottom_pane.notify_extensions("line_added");
+                    }
+                }
+                self.add_boxed_history(cell);
             }
-            self.add_boxed_history(cell);
         }
     }
 
@@ -938,9 +941,14 @@ impl ChatWidget {
     /// animating the output.
     pub(crate) fn on_commit_tick(&mut self) {
         if let Some(controller) = self.stream_controller.as_mut() {
-            let (cell, is_idle) = controller.on_commit_tick();
+            let (cell, line_count, is_idle) = controller.on_commit_tick();
             if let Some(cell) = cell {
                 self.bottom_pane.hide_status_indicator();
+                if self.audio_cues_ready {
+                    for _ in 0..line_count.max(1) {
+                        self.bottom_pane.notify_extensions("line_added");
+                    }
+                }
                 self.add_boxed_history(cell);
             }
             if is_idle {
@@ -1659,10 +1667,16 @@ impl ChatWidget {
     }
 
     fn add_boxed_history(&mut self, cell: Box<dyn HistoryCell>) {
-        if !cell.display_lines(u16::MAX).is_empty() {
+        let lines = cell.display_lines(u16::MAX);
+        if !lines.is_empty() {
             // Only break exec grouping if the cell renders visible lines.
             self.flush_active_cell();
             self.needs_final_message_separator = true;
+            if self.audio_cues_ready {
+                for _ in 0..lines.len() {
+                    self.bottom_pane.notify_extensions("line_added");
+                }
+            }
         }
         self.app_event_tx.send(AppEvent::InsertHistoryCell(cell));
     }
