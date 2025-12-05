@@ -295,6 +295,7 @@ async fn unified_exec_emits_exec_command_begin_event() -> Result<()> {
 
     let call_id = "uexec-begin-event";
     let args = json!({
+        "shell": "bash".to_string(),
         "cmd": "/bin/echo hello unified exec".to_string(),
         "yield_time_ms": 250,
     });
@@ -336,14 +337,8 @@ async fn unified_exec_emits_exec_command_begin_event() -> Result<()> {
     })
     .await;
 
-    assert_eq!(
-        begin_event.command,
-        vec![
-            "/bin/bash".to_string(),
-            "-lc".to_string(),
-            "/bin/echo hello unified exec".to_string()
-        ]
-    );
+    assert_command(&begin_event.command, "-lc", "/bin/echo hello unified exec");
+
     assert_eq!(begin_event.cwd, cwd.path());
 
     wait_for_event(&codex, |event| matches!(event, EventMsg::TaskComplete(_))).await;
@@ -782,6 +777,7 @@ async fn unified_exec_emits_begin_for_write_stdin() -> Result<()> {
 
     let open_call_id = "uexec-open-for-begin";
     let open_args = json!({
+        "shell": "bash".to_string(),
         "cmd": "bash -i".to_string(),
         "yield_time_ms": 200,
     });
@@ -843,14 +839,7 @@ async fn unified_exec_emits_begin_for_write_stdin() -> Result<()> {
     })
     .await;
 
-    assert_eq!(
-        begin_event.command,
-        vec![
-            "/bin/bash".to_string(),
-            "-lc".to_string(),
-            "bash -i".to_string()
-        ]
-    );
+    assert_command(&begin_event.command, "-lc", "bash -i");
     assert_eq!(
         begin_event.interaction_input,
         Some("echo hello".to_string())
@@ -884,6 +873,7 @@ async fn unified_exec_emits_begin_event_for_write_stdin_requests() -> Result<()>
 
     let open_call_id = "uexec-open-session";
     let open_args = json!({
+        "shell": "bash".to_string(),
         "cmd": "bash -i".to_string(),
         "yield_time_ms": 250,
     });
@@ -959,14 +949,9 @@ async fn unified_exec_emits_begin_event_for_write_stdin_requests() -> Result<()>
         .iter()
         .find(|ev| ev.call_id == open_call_id)
         .expect("missing exec_command begin");
-    assert_eq!(
-        open_event.command,
-        vec![
-            "/bin/bash".to_string(),
-            "-lc".to_string(),
-            "bash -i".to_string()
-        ]
-    );
+
+    assert_command(&open_event.command, "-lc", "bash -i");
+
     assert!(
         open_event.interaction_input.is_none(),
         "startup begin events should not include interaction input"
@@ -977,14 +962,9 @@ async fn unified_exec_emits_begin_event_for_write_stdin_requests() -> Result<()>
         .iter()
         .find(|ev| ev.call_id == poll_call_id)
         .expect("missing write_stdin begin");
-    assert_eq!(
-        poll_event.command,
-        vec![
-            "/bin/bash".to_string(),
-            "-lc".to_string(),
-            "bash -i".to_string()
-        ]
-    );
+
+    assert_command(&poll_event.command, "-lc", "bash -i");
+
     assert!(
         poll_event.interaction_input.is_none(),
         "poll begin events should omit interaction input"
@@ -1963,6 +1943,130 @@ async fn unified_exec_runs_under_sandbox() -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unified_exec_python_prompt_under_seatbelt() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let python = match which::which("python").or_else(|_| which::which("python3")) {
+        Ok(path) => path,
+        Err(_) => {
+            eprintln!("python not found in PATH, skipping test.");
+            return Ok(());
+        }
+    };
+
+    let server = start_mock_server().await;
+
+    let mut builder = test_codex().with_config(|config| {
+        config.use_experimental_unified_exec_tool = true;
+        config.features.enable(Feature::UnifiedExec);
+    });
+    let TestCodex {
+        codex,
+        cwd,
+        session_configured,
+        ..
+    } = builder.build(&server).await?;
+
+    let startup_call_id = "uexec-python-seatbelt";
+    let startup_args = serde_json::json!({
+        "cmd": format!("{} -i", python.display()),
+        "yield_time_ms": 750,
+    });
+
+    let exit_call_id = "uexec-python-exit";
+    let exit_args = serde_json::json!({
+        "chars": "exit()\n",
+        "session_id": 1000,
+        "yield_time_ms": 750,
+    });
+
+    let responses = vec![
+        sse(vec![
+            ev_response_created("resp-1"),
+            ev_function_call(
+                startup_call_id,
+                "exec_command",
+                &serde_json::to_string(&startup_args)?,
+            ),
+            ev_completed("resp-1"),
+        ]),
+        sse(vec![
+            ev_response_created("resp-2"),
+            ev_function_call(
+                exit_call_id,
+                "write_stdin",
+                &serde_json::to_string(&exit_args)?,
+            ),
+            ev_completed("resp-2"),
+        ]),
+        sse(vec![
+            ev_response_created("resp-3"),
+            ev_assistant_message("msg-1", "done"),
+            ev_completed("resp-3"),
+        ]),
+    ];
+    mount_sse_sequence(&server, responses).await;
+
+    let session_model = session_configured.model.clone();
+
+    codex
+        .submit(Op::UserTurn {
+            items: vec![UserInput::Text {
+                text: "start python under seatbelt".into(),
+            }],
+            final_output_json_schema: None,
+            cwd: cwd.path().to_path_buf(),
+            approval_policy: AskForApproval::Never,
+            sandbox_policy: SandboxPolicy::ReadOnly,
+            model: session_model,
+            effort: None,
+            summary: ReasoningSummary::Auto,
+        })
+        .await?;
+
+    wait_for_event(&codex, |event| matches!(event, EventMsg::TaskComplete(_))).await;
+
+    let requests = server.received_requests().await.expect("recorded requests");
+    assert!(!requests.is_empty(), "expected at least one POST request");
+
+    let bodies = requests
+        .iter()
+        .map(|req| req.body_json::<Value>().expect("request json"))
+        .collect::<Vec<_>>();
+
+    let outputs = collect_tool_outputs(&bodies)?;
+    let startup_output = outputs
+        .get(startup_call_id)
+        .expect("missing python startup output");
+
+    let output_text = startup_output.output.replace("\r\n", "\n");
+    // This assert that we are in a TTY.
+    assert!(
+        output_text.contains(">>>"),
+        "python prompt missing from seatbelt output: {output_text:?}"
+    );
+
+    assert_eq!(
+        startup_output.process_id.as_deref(),
+        Some("1000"),
+        "python session should stay alive for follow-up input"
+    );
+
+    let exit_output = outputs
+        .get(exit_call_id)
+        .expect("missing python exit output");
+
+    assert_eq!(
+        exit_output.exit_code,
+        Some(0),
+        "python should exit cleanly after exit()"
+    );
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
 async fn unified_exec_prunes_exited_sessions_first() -> Result<()> {
@@ -2120,4 +2224,18 @@ async fn unified_exec_prunes_exited_sessions_first() -> Result<()> {
     );
 
     Ok(())
+}
+
+fn assert_command(command: &[String], expected_args: &str, expected_cmd: &str) {
+    assert_eq!(command.len(), 3);
+    let shell_path = &command[0];
+    assert!(
+        shell_path == "/bin/bash"
+            || shell_path == "/usr/bin/bash"
+            || shell_path == "/usr/local/bin/bash"
+            || shell_path.ends_with("/bash"),
+        "unexpected bash path: {shell_path}"
+    );
+    assert_eq!(command[1], expected_args);
+    assert_eq!(command[2], expected_cmd);
 }

@@ -858,6 +858,7 @@ dependencies = [
  "http",
  "pretty_assertions",
  "regex-lite",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -865,6 +866,7 @@ dependencies = [
  "tokio-test",
  "tokio-util",
  "tracing",
+ "wiremock",
 ]
 
 [[package]]
@@ -1117,12 +1119,10 @@ name = "codex-common"
 version = "0.0.0"
 dependencies = [
  "clap",
- "codex-app-server-protocol",
  "codex-core",
  "codex-lmstudio",
  "codex-ollama",
  "codex-protocol",
- "once_cell",
  "serde",
  "toml",
 ]
@@ -1625,6 +1625,7 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width 0.2.1",
  "url",
+ "uuid",
  "vt100",
 ]
 
