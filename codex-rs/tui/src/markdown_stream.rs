@@ -8,6 +8,7 @@ pub(crate) struct MarkdownStreamCollector {
     buffer: String,
     committed_line_count: usize,
     width: Option<usize>,
+    pending_line_start: bool,
 }
 
 impl MarkdownStreamCollector {
@@ -16,17 +17,33 @@ impl MarkdownStreamCollector {
             buffer: String::new(),
             committed_line_count: 0,
             width,
+            pending_line_start: true,
         }
     }
 
     pub fn clear(&mut self) {
         self.buffer.clear();
         self.committed_line_count = 0;
+        self.pending_line_start = true;
     }
 
-    pub fn push_delta(&mut self, delta: &str) {
+    /// Push a delta and return how many *new line starts* were encountered.
+    /// A line start is counted when the collector is at the beginning of a line
+    /// (initially true or immediately after a '\n') and the next character is
+    /// not a newline.
+    pub fn push_delta(&mut self, delta: &str) -> usize {
         tracing::trace!("push_delta: {delta:?}");
+        let mut starts = 0usize;
+        for ch in delta.chars() {
+            if ch == '\n' {
+                self.pending_line_start = true;
+            } else if self.pending_line_start {
+                starts += 1;
+                self.pending_line_start = false;
+            }
+        }
         self.buffer.push_str(delta);
+        starts
     }
 
     /// Render the full buffer and return only the newly completed logical lines

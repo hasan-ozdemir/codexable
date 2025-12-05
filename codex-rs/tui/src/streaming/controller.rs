@@ -21,22 +21,22 @@ impl StreamController {
         }
     }
 
-    /// Push a delta; return the number of newly completed lines that were enqueued.
-    pub(crate) fn push(&mut self, delta: &str) -> usize {
+    /// Push a delta; return (completed_lines_enqueued, line_starts_seen).
+    pub(crate) fn push(&mut self, delta: &str) -> (usize, usize) {
         let state = &mut self.state;
         if !delta.is_empty() {
             state.has_seen_delta = true;
         }
-        state.collector.push_delta(delta);
+        let line_starts = state.collector.push_delta(delta);
         if delta.contains('\n') {
             let newly_completed = state.collector.commit_complete_lines();
             if !newly_completed.is_empty() {
                 let count = newly_completed.len();
                 state.enqueue(newly_completed);
-                return count;
+                return (count, line_starts);
             }
         }
-        0
+        (0, line_starts)
     }
 
     /// Finalize the active stream. Drain and emit now.

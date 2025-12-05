@@ -315,8 +315,6 @@ pub(crate) struct ChatWidget {
     audio_cues_armed: bool,
     // Avoid firing audio cues until first agent stream starts.
     audio_cues_ready: bool,
-    // Tracks whether we've already emitted a LineAdded for the current stream.
-    stream_line_started: bool,
     // Snapshot of token usage to restore after review mode exits.
     pre_review_token_info: Option<Option<TokenUsageInfo>>,
     // Whether to add a final message separator after the last message
@@ -947,16 +945,12 @@ impl ChatWidget {
             let (cell, line_count, is_idle) = controller.on_commit_tick();
             if let Some(cell) = cell {
                 self.bottom_pane.hide_status_indicator();
-                if self.audio_cues_ready {
-                    for _ in 0..line_count.max(1) {
-                        self.bottom_pane.notify_extensions("line_added");
-                    }
-                }
+                // LineAdded was sent on push; avoid double notifications here.
+                let _ = line_count;
                 self.add_boxed_history_with_audio(cell, false);
             }
             if is_idle {
                 self.app_event_tx.send(AppEvent::StopCommitAnimation);
-                self.stream_line_started = false;
             }
         }
     }
@@ -988,7 +982,6 @@ impl ChatWidget {
             self.bottom_pane.hide_status_indicator();
             self.task_complete_pending = false;
         }
-        self.stream_line_started = false;
         // A completed stream indicates non-exec content was just inserted.
         self.flush_interrupt_queue();
     }
@@ -1001,11 +994,6 @@ impl ChatWidget {
         if !self.audio_cues_ready && self.audio_cues_armed && !from_replay {
             self.audio_cues_ready = true;
         }
-        if !self.stream_line_started && self.audio_cues_ready && !from_replay {
-            self.bottom_pane.notify_extensions("line_added");
-            self.stream_line_started = true;
-        }
-
         if self.stream_controller.is_none() {
             if self.needs_final_message_separator {
                 let elapsed_seconds = self
@@ -1020,13 +1008,13 @@ impl ChatWidget {
             ));
         }
         if let Some(controller) = self.stream_controller.as_mut() {
-            let lines_added = controller.push(&delta);
-            if lines_added > 0 {
-                if self.audio_cues_ready {
-                    for _ in 0..lines_added {
-                        self.bottom_pane.notify_extensions("line_added");
-                    }
+            let (lines_completed, line_starts) = controller.push(&delta);
+            if self.audio_cues_ready && !from_replay && line_starts > 0 {
+                for _ in 0..line_starts {
+                    self.bottom_pane.notify_extensions("line_added");
                 }
+            }
+            if lines_completed > 0 {
                 self.app_event_tx.send(AppEvent::StartCommitAnimation);
             }
         }
@@ -1324,7 +1312,6 @@ impl ChatWidget {
             is_review_mode: false,
             audio_cues_armed: false,
             audio_cues_ready: false,
-            stream_line_started: false,
             pre_review_token_info: None,
             needs_final_message_separator: false,
             last_rendered_width: std::cell::Cell::new(None),
@@ -1404,7 +1391,6 @@ impl ChatWidget {
             is_review_mode: false,
             audio_cues_armed: false,
             audio_cues_ready: false,
-            stream_line_started: false,
             pre_review_token_info: None,
             needs_final_message_separator: false,
             last_rendered_width: std::cell::Cell::new(None),
