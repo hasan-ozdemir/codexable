@@ -363,12 +363,12 @@ impl ChatWidget {
         if let Some(mut controller) = self.stream_controller.take() {
             if let Some(cell) = controller.finalize() {
                 if self.audio_cues_ready {
-                    let lines = cell.display_lines(u16::MAX).len();
-                    for _ in 0..lines.max(1) {
+                    let lines = cell.display_lines(u16::MAX).len().max(1);
+                    for _ in 0..lines {
                         self.bottom_pane.notify_extensions("line_added");
                     }
                 }
-                self.add_boxed_history(cell);
+                self.add_boxed_history_with_audio(cell, false);
             }
         }
     }
@@ -949,7 +949,7 @@ impl ChatWidget {
                         self.bottom_pane.notify_extensions("line_added");
                     }
                 }
-                self.add_boxed_history(cell);
+                self.add_boxed_history_with_audio(cell, false);
             }
             if is_idle {
                 self.app_event_tx.send(AppEvent::StopCommitAnimation);
@@ -1667,12 +1667,16 @@ impl ChatWidget {
     }
 
     fn add_boxed_history(&mut self, cell: Box<dyn HistoryCell>) {
+        self.add_boxed_history_with_audio(cell, true);
+    }
+
+    fn add_boxed_history_with_audio(&mut self, cell: Box<dyn HistoryCell>, emit_audio: bool) {
         let lines = cell.display_lines(u16::MAX);
         if !lines.is_empty() {
             // Only break exec grouping if the cell renders visible lines.
             self.flush_active_cell();
             self.needs_final_message_separator = true;
-            if self.audio_cues_ready {
+            if self.audio_cues_ready && emit_audio {
                 for _ in 0..lines.len() {
                     self.bottom_pane.notify_extensions("line_added");
                 }
