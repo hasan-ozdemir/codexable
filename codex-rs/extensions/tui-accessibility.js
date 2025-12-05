@@ -104,6 +104,11 @@ function handleNotify(payload, req) {
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;
   }
+  if (event === "conversation_interrupted") {
+    const ok = playSound("Scissors.wav");
+    respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
+    return;
+  }
   if (event === "completion_end") {
     const ok = playSound("ascend.wav");
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });

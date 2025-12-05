@@ -741,6 +741,10 @@ impl ChatWidget {
         // Finalize, log a gentle prompt, and clear running state.
         self.finalize_turn();
 
+        if self.audio_cues_ready {
+            self.bottom_pane.notify_extensions("conversation_interrupted");
+        }
+
         if reason != TurnAbortReason::ReviewEnded {
             self.add_to_history(history_cell::new_error_event(
                 "Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the issue.".to_owned(),
