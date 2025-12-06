@@ -1,3 +1,5 @@
+set working-directory := "codex-rs"
+set positional-arguments
 # Default shell for Unix-likes; overridden on Windows below.
 set shell := ["sh", "-c"]
 # Use cmd.exe on Windows where a POSIX shell may be absent.
