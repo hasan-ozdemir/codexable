@@ -18,7 +18,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -209,6 +210,9 @@ impl ExtensionHost {
     }
 
     pub(crate) fn notify_event(&self, event: &str) {
+        if matches!(event, "completion_end" | "conversation_interrupted") {
+            self.cancel_line_added_timer();
+        }
         if self.scripts.is_empty() {
             return;
         }
@@ -242,6 +246,10 @@ impl ExtensionHost {
                 }
             });
         }
+    }
+
+    fn cancel_line_added_timer(&self) {
+        self.line_added_token.fetch_add(1, Ordering::SeqCst);
     }
 
     pub(crate) fn history_push(&self, text: &str) {
@@ -925,6 +933,37 @@ impl ExtensionHost {
         }
 
         (None, None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    fn host_with_token(token: u64) -> ExtensionHost {
+        ExtensionHost {
+            scripts: Vec::new(),
+            config: ExtensionConfig::default(),
+            last_seed_mtime: RefCell::new(None),
+            log_path: PathBuf::from("log"),
+            session_path: RefCell::new(None),
+            line_added_token: Arc::new(AtomicU64::new(token)),
+        }
+    }
+
+    #[test]
+    fn completion_end_cancels_line_added_timer() {
+        let host = host_with_token(7);
+        host.notify_event("completion_end");
+        assert_eq!(8, host.line_added_token.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn unrelated_events_do_not_cancel_line_added_timer() {
+        let host = host_with_token(2);
+        host.notify_event("some_other_event");
+        assert_eq!(2, host.line_added_token.load(Ordering::SeqCst));
     }
 }
 

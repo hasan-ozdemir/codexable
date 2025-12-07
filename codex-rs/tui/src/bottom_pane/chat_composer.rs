@@ -168,7 +168,7 @@ impl ChatComposer {
             #[cfg(test)]
             {
                 let _ = key;
-                return default;
+                default
             }
             #[cfg(not(test))]
             {
