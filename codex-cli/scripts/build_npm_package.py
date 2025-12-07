@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -167,9 +168,15 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         if readme_src.exists():
             shutil.copy2(readme_src, staging_dir / "README.md")
 
-        extensions_src = REPO_ROOT / "extensions"
-        if extensions_src.exists():
-            shutil.copytree(extensions_src, staging_dir / "extensions")
+        extensions_dest = staging_dir / "extensions"
+        extensions_sources = [
+            REPO_ROOT / "extensions",               # legacy/root extensions
+            REPO_ROOT / "codex-rs" / "extensions",  # TUI accessibility, sounds, etc.
+        ]
+        for src in extensions_sources:
+            if not src.exists():
+                continue
+            _copy_tree_merge(src, extensions_dest)
 
         package_json_path = CODEX_CLI_ROOT / "package.json"
     elif package == "codex-responses-api-proxy":
@@ -304,6 +311,18 @@ def run_npm_pack(staging_dir: Path, output_path: Path) -> Path:
         shutil.move(str(tarball_path), output_path)
 
     return output_path
+
+
+def _copy_tree_merge(src: Path, dest: Path) -> None:
+    """Recursively copy `src` into `dest`, merging if `dest` already exists."""
+    src = src.resolve()
+    dest = dest.resolve()
+    for root, dirs, files in os.walk(src):
+        rel = Path(root).relative_to(src)
+        target_dir = dest / rel
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for name in files:
+            shutil.copy2(Path(root) / name, target_dir / name)
 
 
 if __name__ == "__main__":
