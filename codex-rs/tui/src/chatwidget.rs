@@ -330,6 +330,8 @@ pub(crate) struct ChatWidget {
     audio_cues_armed: bool,
     // Avoid firing audio cues until first agent stream starts.
     audio_cues_ready: bool,
+    // Limit line_added cues to active streaming phases.
+    line_audio_active: bool,
     // Snapshot of token usage to restore after review mode exits.
     pre_review_token_info: Option<Option<TokenUsageInfo>>,
     // Whether to add a final message separator after the last message
@@ -389,9 +391,6 @@ impl ChatWidget {
         }
         self.current_status_header = header.clone();
         self.bottom_pane.update_status_header(header);
-        if self.audio_cues_ready {
-            self.bottom_pane.notify_extensions("line_added");
-        }
     }
 
     // --- Small event handlers ---
@@ -462,6 +461,7 @@ impl ChatWidget {
         }
         self.flush_answer_stream_with_separator();
         self.handle_stream_finished();
+        self.deactivate_line_audio();
         if self.audio_cues_ready {
             self.bottom_pane.notify_extensions("completion_end");
         }
@@ -666,6 +666,7 @@ impl ChatWidget {
         self.suppressed_exec_calls.clear();
         self.last_unified_wait = None;
         self.stream_controller = None;
+        self.deactivate_line_audio();
         self.maybe_show_pending_rate_limit_prompt();
     }
     pub(crate) fn get_model_family(&self) -> ModelFamily {
@@ -856,8 +857,9 @@ impl ChatWidget {
                 *pending = false;
             }
         }
-        for _ in 0..starts {
-            self.bottom_pane.notify_extensions("line_added");
+        if starts > 0 {
+            self.line_audio_active = true;
+            self.notify_line_added(starts);
         }
     }
 
@@ -1049,12 +1051,11 @@ impl ChatWidget {
         }
         if let Some(controller) = self.stream_controller.as_mut() {
             let lines_completed = controller.push(&delta);
-            if self.audio_cues_ready && !from_replay && lines_completed > 0 {
-                for _ in 0..lines_completed {
-                    self.bottom_pane.notify_extensions("line_added");
-                }
-            }
             if lines_completed > 0 {
+                self.line_audio_active = true;
+                if !from_replay {
+                    self.notify_line_added(lines_completed);
+                }
                 self.app_event_tx.send(AppEvent::StartCommitAnimation);
             }
         }
@@ -1366,6 +1367,7 @@ impl ChatWidget {
             is_review_mode: false,
             audio_cues_armed: false,
             audio_cues_ready: false,
+            line_audio_active: false,
             pre_review_token_info: None,
             needs_final_message_separator: false,
             last_rendered_width: std::cell::Cell::new(None),
@@ -1454,6 +1456,7 @@ impl ChatWidget {
             is_review_mode: false,
             audio_cues_armed: false,
             audio_cues_ready: false,
+            line_audio_active: false,
             pre_review_token_info: None,
             needs_final_message_separator: false,
             last_rendered_width: std::cell::Cell::new(None),
@@ -1744,13 +1747,24 @@ impl ChatWidget {
             // Only break exec grouping if the cell renders visible lines.
             self.flush_active_cell();
             self.needs_final_message_separator = true;
-            if self.audio_cues_ready && emit_audio {
-                for _ in 0..lines.len() {
-                    self.bottom_pane.notify_extensions("line_added");
-                }
+            if emit_audio {
+                self.notify_line_added(lines.len());
             }
         }
         self.app_event_tx.send(AppEvent::InsertHistoryCell(cell));
+    }
+
+    fn notify_line_added(&mut self, count: usize) {
+        if !self.audio_cues_ready || !self.line_audio_active {
+            return;
+        }
+        for _ in 0..count {
+            self.bottom_pane.notify_extensions("line_added");
+        }
+    }
+
+    fn deactivate_line_audio(&mut self) {
+        self.line_audio_active = false;
     }
 
     fn queue_user_message(&mut self, user_message: UserMessage) {

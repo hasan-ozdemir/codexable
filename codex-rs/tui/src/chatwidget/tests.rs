@@ -448,6 +448,7 @@ fn make_chatwidget_manual() -> (
         is_review_mode: false,
         audio_cues_armed: false,
         audio_cues_ready: false,
+        line_audio_active: false,
         pre_review_token_info: None,
         needs_final_message_separator: false,
         last_rendered_width: std::cell::Cell::new(None),
