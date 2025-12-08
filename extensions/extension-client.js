@@ -23,7 +23,7 @@ const PORT =
   Number(process.env.CODEX_EXTENSION_PORT || process.env.CODEX_EXT_PORT) || 5555;
 const HOST = "127.0.0.1";
 
-let LOG_PATH = null;
+let LOG_PATH = process.env.CODEX_EXTENSION_LOG || null;
 let LAST_SCRIPTS_SUMMARY = "";
 
 function log(msg) {
@@ -68,6 +68,12 @@ function discoverScripts() {
     candidates.push(path.join(process.cwd(), "extensions"));
   }
 
+  log(
+    `discover scripts; candidates=${candidates
+      .filter(Boolean)
+      .join(", ") || "none"}`,
+  );
+
   const scripts = [];
   const seen = new Set();
   const selfPath = __filename ? path.resolve(__filename) : null;
@@ -89,6 +95,11 @@ function discoverScripts() {
   }
 
   scripts.sort();
+  if (scripts.length === 0) {
+    log("discover scripts: none found");
+  } else {
+    log(`discover scripts: ${scripts.join(", ")}`);
+  }
   return scripts;
 }
 
@@ -97,6 +108,7 @@ function buildHandler(file) {
     const mod = require(file);
     const fn = mod.dispatch || mod.handle || mod.handleRequest || mod.default;
     if (typeof fn === "function") {
+      log(`loaded handler via require ${file}`);
       return async (req) => fn(req);
     }
   } catch (err) {
@@ -106,6 +118,7 @@ function buildHandler(file) {
   // Fallback: spawn as a standalone script (legacy CLI behaviour).
   return async (req) =>
     new Promise((resolve) => {
+      log(`falling back to legacy spawn for ${file}`);
       const child = spawn("node", [file], { stdio: ["pipe", "pipe", "pipe"] });
       let stdout = "";
       let stderr = "";
@@ -139,6 +152,9 @@ function buildHandler(file) {
 const SCRIPT_PATHS = discoverScripts();
 const HANDLERS = SCRIPT_PATHS.map((p) => ({ path: p, fn: buildHandler(p) }));
 LAST_SCRIPTS_SUMMARY = SCRIPT_PATHS.join(", ");
+log(
+  `extension-client starting pid=${process.pid} node=${process.execPath} script=${__filename} cwd=${process.cwd()} port=${HOST}:${PORT} handlers=${HANDLERS.length}`,
+);
 
 function mergeConfigPayloads(payloads) {
   const merged = {};
@@ -242,8 +258,10 @@ async function handleLine(line, socket) {
   }
   if (req.log_path) {
     LOG_PATH = req.log_path;
+    log(`log path updated from request: ${LOG_PATH}`);
   }
   const id = req.id;
+  log(`request id=${id} action=${req.action || "unknown"}`);
 
   if (req.action === "shutdown") {
     socket.write(JSON.stringify({ id, status: "ok" }) + "\n");
@@ -270,3 +288,12 @@ async function handleLine(line, socket) {
 }
 
 startServer();
+
+process.on("uncaughtException", (err) => {
+  log(`uncaughtException: ${err?.stack || err}`);
+  process.exit(1);
+});
+
+process.on("exit", (code) => {
+  log(`extension-client exit code=${code}`);
+});

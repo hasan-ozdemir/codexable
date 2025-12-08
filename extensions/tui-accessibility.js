@@ -66,6 +66,7 @@ function playSound(file) {
 
   const full = (() => {
     if (path.isAbsolute(file) && fs.existsSync(file)) {
+      log(`playSound resolved absolute path ${file}`);
       return file;
     }
     const bundled = path.join(__dirname, "sounds", file);
@@ -74,6 +75,7 @@ function playSound(file) {
       const pkgSound = path.join(pkgRoot, "extensions", "sounds", file);
       if (fs.existsSync(pkgSound)) return pkgSound;
     }
+    log(`playSound fell back to JAWS default for ${file}`);
     return jawsPath;
   })();
 
@@ -97,15 +99,15 @@ function playSound(file) {
         currentSound = null;
       }
       if (code !== 0) {
-        log(`playSound exit ${code} for ${file}`);
+        log(`playSound exit ${code} for ${file} (resolved ${full})`);
       }
     });
     child.on("error", (err) => {
-      log(`playSound failed for ${file}: ${err}`);
+      log(`playSound failed for ${file} (resolved ${full}): ${err}`);
     });
     return true;
   } catch (err) {
-    log(`playSound threw for ${file}: ${err}`);
+    log(`playSound threw for ${file} (resolved ${full}): ${err}`);
     return false;
   }
 }

@@ -151,7 +151,13 @@ impl std::error::Error for ExtensionHostError {}
 
 impl ExtensionBridge {
     fn spawn(port: u16, log_path: &Path) -> Option<Self> {
-        let script = ExtensionHost::extension_client_script()?;
+        let script = ExtensionHost::extension_client_script().or_else(|| {
+            ExtensionHost::log_static(
+                log_path,
+                "extension-client.js not found; extensions disabled",
+            );
+            None
+        })?;
         let mut cmd = Command::new("node");
         cmd.arg(&script)
             .env("CODEX_EXTENSION_PORT", port.to_string())
@@ -193,6 +199,10 @@ impl ExtensionBridge {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
+        ExtensionHost::log_static(
+            log_path,
+            "extension-client connect timeout after 20 attempts",
+        );
         None
     }
 
@@ -1127,6 +1137,19 @@ impl ExtensionHost {
             return home.join(".codex").join("log").join("codex_extensions.log");
         }
         env::temp_dir().join("codex_extensions.log")
+    }
+
+    fn log_static(log_path: &Path, message: impl AsRef<str>) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0);
+        if let Some(dir) = log_path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_path) {
+            let _ = writeln!(file, "{timestamp:.3} [tui] {}", message.as_ref());
+        }
     }
 
     pub(crate) fn log_event(&self, message: impl AsRef<str>) {
