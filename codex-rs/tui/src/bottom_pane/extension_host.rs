@@ -569,6 +569,7 @@ impl ExtensionHost {
             return Ok(None);
         }
 
+        let mut last_error: Option<ExtensionHostError> = None;
         for script in &self.scripts {
             self.log_event(format!("Calling script {script:?} action {action}"));
             match Self::run_script(script, action, payload.clone(), &self.log_path) {
@@ -589,11 +590,16 @@ impl ExtensionHost {
                 }
                 Err(err) => {
                     self.log_event(format!("Script {script:?} failed: {err}"));
-                    return Err(err);
+                    last_error = Some(err);
+                    continue;
                 }
             }
         }
-        Ok(None)
+        if let Some(err) = last_error {
+            Err(err)
+        } else {
+            Ok(None)
+        }
     }
 
     fn run_script(
