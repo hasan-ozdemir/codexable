@@ -549,15 +549,23 @@ impl ExtensionHost {
             candidates.push(PathBuf::from(dir));
         }
 
+        let mut is_packaged = false;
         if let Ok(exe) = env::current_exe() {
+            is_packaged = exe
+                .ancestors()
+                .any(|p| p.components().any(|c| c.as_os_str() == "node_modules"));
             for ancestor in exe.ancestors() {
-                let ext_dir = ancestor.join("extensions");
-                candidates.push(ext_dir);
+                candidates.push(ancestor.join("extensions"));
             }
         }
 
-        if let Ok(cwd) = env::current_dir() {
-            candidates.push(cwd.join("extensions"));
+        // In packaged (npm -g) installations we should not pick up a developer
+        // working directory's extensions. In dev/debug runs (cargo/just),
+        // including cwd/extensions keeps local edits active.
+        if !is_packaged {
+            if let Ok(cwd) = env::current_dir() {
+                candidates.push(cwd.join("extensions"));
+            }
         }
 
         let mut scripts: Vec<PathBuf> = Vec::new();

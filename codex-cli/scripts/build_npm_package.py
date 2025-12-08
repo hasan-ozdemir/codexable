@@ -169,14 +169,9 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
             shutil.copy2(readme_src, staging_dir / "README.md")
 
         extensions_dest = staging_dir / "extensions"
-        extensions_sources = [
-            REPO_ROOT / "extensions",               # legacy/root extensions
-            REPO_ROOT / "codex-rs" / "extensions",  # TUI accessibility, sounds, etc.
-        ]
-        for src in extensions_sources:
-            if not src.exists():
-                continue
-            _copy_tree_merge(src, extensions_dest)
+        extensions_source = REPO_ROOT / "extensions"
+        if extensions_source.exists():
+            _copy_tree_merge(extensions_source, extensions_dest)
 
         package_json_path = CODEX_CLI_ROOT / "package.json"
     elif package == "codex-responses-api-proxy":
