@@ -131,7 +131,8 @@ function handleNotify(payload, req) {
     return;
   }
   if (event === "app_ready") {
-    const ok = playSound("C:\\\\Windows\\\\Media\\\\notify.wav");
+    // Use bundled notify.wav so it also works inside the packaged npm install.
+    const ok = playSound("notify.wav");
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;
   }
