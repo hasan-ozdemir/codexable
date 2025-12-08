@@ -13,9 +13,12 @@ rem Version to publish; edit NPM_DEBUG_VERSION here.
 set "npm_debug_version=0.65.1"
 set "RELEASE_VERSION=%npm_debug_version%"
 
-rem Parse optional flags
+rem Parse optional flags (any position)
 set "FORCE_REBUILD=0"
-if /I "%~1"=="-rb" set "FORCE_REBUILD=1"
+for %%A in (%*) do (
+    if /I "%%~A"=="-rb" set "FORCE_REBUILD=1"
+    if /I "%%~A"=="/rb" set "FORCE_REBUILD=1"
+)
 
 echo === Syncing repository versions to %RELEASE_VERSION% ===
 powershell -NoProfile -Command ^
@@ -63,6 +66,8 @@ if "%FORCE_REBUILD%"=="1" (
     pushd "%REPO_ROOT%\codex-rs" >nul || exit /b 1
     cargo clean
     popd >nul
+    echo === Removing previously installed global codex (best-effort) ===
+    npm uninstall -g @openai/codex >nul 2>&1
 )
 
 rem Ensure output directories exist
