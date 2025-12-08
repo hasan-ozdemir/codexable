@@ -23,34 +23,7 @@ if not "%~1"=="" (
 )
 
 echo === Syncing repository versions to %RELEASE_VERSION% ===
-powershell -NoProfile -Command ^
-  "& { " ^
-  "  $ErrorActionPreference='Stop';" ^
-  "  $v='%RELEASE_VERSION%';" ^
-  "  $root='%REPO_ROOT%';" ^
-  "  $enc=New-Object System.Text.UTF8Encoding($false);" ^
-  "  $jsons=@('codex-cli/package.json','sdk/typescript/package.json','codex-rs/responses-api-proxy/npm/package.json','shell-tool-mcp/package.json');" ^
-  "  foreach($rel in $jsons){" ^
-  "    $p=Join-Path $root $rel;" ^
-  "    $obj=Get-Content $p -Raw | ConvertFrom-Json;" ^
-  "    $obj.version=$v;" ^
-  "    $json=$obj | ConvertTo-Json -Depth 50;" ^
-  "    [IO.File]::WriteAllBytes($p,$enc.GetBytes($json))" ^
-  "  }" ^
-  "  $tomlPath=Join-Path $root 'codex-rs/Cargo.toml';" ^
-  "  $lines=Get-Content $tomlPath;" ^
-  "  $start=$lines.IndexOf('[workspace.package]');" ^
-  "  if($start -lt 0){throw 'workspace.package section not found'};" ^
-  "  $found=$false;" ^
-  "  for($i=$start+1;$i -lt $lines.Count;$i++){" ^
-  "    $trim=$lines[$i].TrimStart();" ^
-  "    if($trim.StartsWith('[')){break}" ^
-  "    if($trim.StartsWith('version')){ $lines[$i] = 'version = \"'+$v+'\"'; $found=$true; break }" ^
-  "  }" ^
-  "  if(-not $found){throw 'workspace.package version not found'}" ^
-  "  $tomlText=($lines -join [Environment]::NewLine);" ^
-  "  [IO.File]::WriteAllBytes($tomlPath,$enc.GetBytes($tomlText))" ^
-  "}"
+powershell -NoProfile -Command "Set-StrictMode -Version Latest; $ErrorActionPreference='Stop'; $v='%RELEASE_VERSION%'; $root='%REPO_ROOT%'; $enc=[Text.UTF8Encoding]::new($false); $jsons=@('codex-cli/package.json','sdk/typescript/package.json','codex-rs/responses-api-proxy/npm/package.json','shell-tool-mcp/package.json'); foreach($rel in $jsons){ $p=Join-Path $root $rel; $obj=Get-Content $p -Raw | ConvertFrom-Json; $obj.version=$v; $json=$obj | ConvertTo-Json -Depth 50; [IO.File]::WriteAllBytes($p,$enc.GetBytes($json)) }; $tomlPath=Join-Path $root 'codex-rs/Cargo.toml'; $lines=Get-Content $tomlPath; $start=$lines.IndexOf('[workspace.package]'); if($start -lt 0){ throw 'workspace.package section not found' }; $found=$false; for($i=$start+1; $i -lt $lines.Count; $i++){ $trim=$lines[$i].TrimStart(); if($trim -like '[[]*'){ break }; if($trim -like 'version*'){ $lines[$i] = 'version = ' + '\"'+$v+'\"'; $found=$true; break } }; if(-not $found){ throw 'workspace.package version not found' }; $tomlText=$lines -join [Environment]::NewLine; [IO.File]::WriteAllBytes($tomlPath,$enc.GetBytes($tomlText))"
 if errorlevel 1 (
     echo Version sync failed.
     exit /b 1
