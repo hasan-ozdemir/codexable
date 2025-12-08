@@ -11,16 +11,35 @@ rem Resolve repo root (directory of this script)
 set "REPO_ROOT=%~dp0"
 if "%REPO_ROOT:~-1%"=="\" set "REPO_ROOT=%REPO_ROOT:~0,-1%"
 
-rem Version to publish; override with CODEX_NPM_VERSION env var.
-set "DEFAULT_VERSION=0.65.1"
-if not "%CODEX_NPM_VERSION%"=="" (
-    set "RELEASE_VERSION=%CODEX_NPM_VERSION%"
-) else (
-    set "RELEASE_VERSION=%DEFAULT_VERSION%"
-)
+rem Version to publish; edit NPM_DEBUG_VERSION here.
+set "npm_debug_version=0.65.1"
+set "RELEASE_VERSION=%npm_debug_version%"
 
 if "%RELEASE_VERSION%"=="" (
     echo Failed to determine target npm version.
+    exit /b 1
+)
+
+echo === Syncing repository versions to %RELEASE_VERSION% ===
+powershell -NoProfile -Command ^
+  "$ErrorActionPreference='Stop';" ^
+  "$v='%RELEASE_VERSION%';" ^
+  "$root='%REPO_ROOT%';" ^
+  "$jsons=@('codex-cli/package.json','sdk/typescript/package.json','codex-rs/responses-api-proxy/npm/package.json','shell-tool-mcp/package.json');" ^
+  "foreach($rel in $jsons){" ^
+  "  $p=Join-Path $root $rel;" ^
+  "  $obj=Get-Content $p -Raw | ConvertFrom-Json;" ^
+  "  $obj.version=$v;" ^
+  "  $obj | ConvertTo-Json -Depth 50 | Set-Content -Encoding UTF8 $p" ^
+  "}" ^
+  "$tomlPath=Join-Path $root 'codex-rs/Cargo.toml';" ^
+  "$content=Get-Content $tomlPath -Raw;" ^
+  "$regex='(?s)(\\[workspace\\.package\\].*?version\\s*=\\s*\")([^\"]*)(\")';" ^
+  "if($content -notmatch $regex){throw 'workspace.package version not found';}" ^
+  "$newContent=[regex]::Replace($content,$regex,('$1'+$v+'$3'),1);" ^
+  "Set-Content -Path $tomlPath -Value $newContent -Encoding UTF8;"
+if errorlevel 1 (
+    echo Version sync failed.
     exit /b 1
 )
 
