@@ -553,7 +553,13 @@ impl ExtensionHost {
 
     #[cfg_attr(test, allow(dead_code))]
     fn history_lookup(&self, action: &str) -> Option<String> {
-        let reply = self.invoke_first(action, json!({}));
+        let session_path_json = self
+            .session_path
+            .borrow()
+            .as_ref()
+            .map(|p| json!(p))
+            .unwrap_or(Value::Null);
+        let reply = self.invoke_first(action, json!({ "session_path": session_path_json }));
         match reply {
             Ok(Some(ExtensionReply::Ok { text, payload })) => {
                 text.or_else(|| payload.and_then(Self::extract_text_field))
