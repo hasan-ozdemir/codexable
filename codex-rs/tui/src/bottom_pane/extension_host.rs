@@ -21,9 +21,11 @@ use std::process::Command;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-use std::sync::mpsc::{RecvTimeoutError, channel};
+use std::sync::mpsc::RecvTimeoutError;
+use std::sync::mpsc::channel;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -50,6 +52,7 @@ pub(crate) struct ExtensionHost {
     log_path: PathBuf,
     session_path: RefCell<Option<PathBuf>>,
     line_added_token: Arc<AtomicU64>,
+    ready_emitted: AtomicBool,
 }
 
 const HISTORY_PAGE_JUMP: usize = 10;
@@ -302,6 +305,7 @@ impl ExtensionHost {
             log_path,
             session_path: RefCell::new(None),
             line_added_token: Arc::new(AtomicU64::new(0)),
+            ready_emitted: AtomicBool::new(false),
         };
         host.log_event(format!(
             "Host initialized; discovered extensions: {:?}",
@@ -309,6 +313,7 @@ impl ExtensionHost {
         ));
         host.log_loaded_extensions();
         host.maybe_seed_history();
+        host.emit_ready_once();
         host
     }
 
@@ -416,6 +421,13 @@ impl ExtensionHost {
 
     fn cancel_line_added_timer(&self) {
         self.line_added_token.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn emit_ready_once(&self) {
+        if self.ready_emitted.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        self.notify_event("ready");
     }
 
     pub(crate) fn history_push(&self, text: &str) {

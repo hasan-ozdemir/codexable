@@ -24,6 +24,7 @@ const PORT =
 const HOST = "127.0.0.1";
 
 let LOG_PATH = null;
+let LAST_SCRIPTS_SUMMARY = "";
 
 function log(msg) {
   if (!LOG_PATH) return;
@@ -51,6 +52,13 @@ function discoverScripts() {
   }
   for (const dir of exeAncestors) {
     candidates.push(path.join(dir, "extensions"));
+  }
+
+  // Prefer the directory where this client script lives (npm package extensions dir)
+  const scriptDir = __dirname;
+  if (scriptDir) {
+    candidates.push(scriptDir);
+    candidates.push(path.join(scriptDir, "..")); // for future layout changes
   }
 
   const isPackaged = exeAncestors.some((p) =>
@@ -126,6 +134,7 @@ function buildHandler(file) {
 
 const SCRIPT_PATHS = discoverScripts();
 const HANDLERS = SCRIPT_PATHS.map((p) => ({ path: p, fn: buildHandler(p) }));
+LAST_SCRIPTS_SUMMARY = SCRIPT_PATHS.join(", ");
 
 function mergeConfigPayloads(payloads) {
   const merged = {};
@@ -188,6 +197,9 @@ async function handleFirstMatch(req) {
 function startServer() {
   const server = net.createServer((socket) => {
     socket.setEncoding("utf8");
+    if (LOG_PATH) {
+      log(`client accepted connection; scripts=${LAST_SCRIPTS_SUMMARY || "none"}`);
+    }
     let buf = "";
     socket.on("data", (chunk) => {
       buf += chunk;

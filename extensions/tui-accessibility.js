@@ -52,11 +52,17 @@ function playSound(file) {
   const path = require("path");
   const { spawn } = require("child_process");
   const fs = require("fs");
-  const bundled = path.join(__dirname, "sounds", file);
   const jawsPath =
     "C:\\\\ProgramData\\\\Freedom Scientific\\\\JAWS\\\\2025\\\\SETTINGS\\\\enu\\\\SOUNDS\\\\TypeDing2.wav";
 
-  const full = fs.existsSync(bundled) ? bundled : jawsPath;
+  const full = (() => {
+    if (path.isAbsolute(file) && fs.existsSync(file)) {
+      return file;
+    }
+    const bundled = path.join(__dirname, "sounds", file);
+    if (fs.existsSync(bundled)) return bundled;
+    return jawsPath;
+  })();
 
   try {
     if (currentSound && !currentSound.killed) {
@@ -121,6 +127,11 @@ function handleNotify(payload, req) {
   }
   if (event === "completion_end") {
     const ok = playSound("ascend.wav");
+    respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
+    return;
+  }
+  if (event === "ready") {
+    const ok = playSound("C:\\\\Windows\\\\Media\\\\notify.wav");
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;
   }
