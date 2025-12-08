@@ -315,7 +315,6 @@ impl ExtensionHost {
         ));
         host.log_loaded_extensions();
         host.maybe_seed_history();
-        host.emit_ready_once();
         host
     }
 
@@ -415,7 +414,44 @@ impl ExtensionHost {
         if self.ready_emitted.swap(true, Ordering::SeqCst) {
             return;
         }
-        self.notify_event("ready");
+        self.schedule_ready_after_idle();
+    }
+
+    fn schedule_ready_after_idle(&self) {
+        if self.ready_emitted.load(Ordering::SeqCst) {
+            return;
+        }
+        let bridge = self.bridge.clone();
+        if bridge.is_none() {
+            return;
+        }
+        let ready_token = self.ready_token.clone();
+        let line_token = self.line_added_token.clone();
+        let log_path = self.log_path.clone();
+        let already_emitted = self.ready_emitted.clone();
+        // Increment token to cancel prior timers.
+        let token_snapshot = ready_token.fetch_add(1, Ordering::SeqCst) + 1;
+        std::thread::spawn(move || {
+            let line_snapshot = line_token.load(Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(800));
+            if ready_token.load(Ordering::SeqCst) != token_snapshot {
+                return;
+            }
+            if line_token.load(Ordering::SeqCst) != line_snapshot {
+                return;
+            }
+            if already_emitted
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_err()
+            {
+                return;
+            }
+            if let Some(bridge) = bridge {
+                if let Ok(mut guard) = bridge.lock() {
+                    let _ = guard.send_request("notify", json!({ "event": "ready" }), &log_path);
+                }
+            }
+        });
     }
 
     pub(crate) fn history_push(&self, text: &str) {
