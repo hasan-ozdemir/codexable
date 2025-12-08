@@ -1028,8 +1028,14 @@ impl ExtensionHost {
         ));
         *self.session_path.borrow_mut() = Some(seed.path.clone());
         let payload = json!({ "payload": { "entries": seed.entries, "session_path": seed.path } });
-        for script in &self.scripts {
-            let _ = Self::run_script(script, "history_seed", payload.clone(), &self.log_path);
+        if let Some(bridge) = &self.bridge {
+            if let Ok(mut guard) = bridge.lock() {
+                let _ = guard.send_request("history_seed", payload.clone(), &self.log_path);
+            }
+        } else {
+            for script in &self.scripts {
+                let _ = Self::run_script(script, "history_seed", payload.clone(), &self.log_path);
+            }
         }
         *self.last_seed_mtime.borrow_mut() = Some(seed.mtime);
     }
