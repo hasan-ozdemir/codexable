@@ -130,7 +130,7 @@ function handleNotify(payload, req) {
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;
   }
-  if (event === "ready") {
+  if (event === "app_ready") {
     const ok = playSound("C:\\\\Windows\\\\Media\\\\notify.wav");
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;

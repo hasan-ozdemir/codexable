@@ -448,7 +448,8 @@ impl ExtensionHost {
             }
             if let Some(bridge) = bridge {
                 if let Ok(mut guard) = bridge.lock() {
-                    let _ = guard.send_request("notify", json!({ "event": "ready" }), &log_path);
+                    let _ =
+                        guard.send_request("notify", json!({ "event": "app_ready" }), &log_path);
                 }
             }
         });
