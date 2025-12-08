@@ -150,20 +150,32 @@ impl std::fmt::Display for ExtensionHostError {
 impl std::error::Error for ExtensionHostError {}
 
 impl ExtensionBridge {
-    fn spawn(port: u16) -> Option<Self> {
+    fn spawn(port: u16, log_path: &Path) -> Option<Self> {
         let script = ExtensionHost::extension_client_script()?;
         let mut cmd = Command::new("node");
         cmd.arg(&script)
             .env("CODEX_EXTENSION_PORT", port.to_string())
+            .env("CODEX_EXTENSION_LOG", log_path)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
+        ExtensionHost::log_static(
+            log_path,
+            &format!(
+                "Spawning extension-client: node={:?} script={}",
+                cmd.get_program(),
+                script.display()
+            ),
+        );
         let mut child = cmd.spawn().ok()?;
 
         let addr = format!("127.0.0.1:{port}");
         for _ in 0..20 {
             if let Some(status) = child.try_wait().ok().flatten() {
-                tracing::warn!("extension-client exited early with {status}");
+                ExtensionHost::log_static(
+                    log_path,
+                    &format!("extension-client exited early with {status}"),
+                );
                 return None;
             }
             if let Ok(stream) = TcpStream::connect(&addr) {
