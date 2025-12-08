@@ -440,6 +440,11 @@ impl ExtensionHost {
             .unwrap_or(Value::Null);
         let payload = json!({ "text": text, "session_path": session_path_json });
         self.log_event(format!("history_push text='{text}'"));
+        if let Some(bridge) = &self.bridge {
+            if let Ok(mut guard) = bridge.lock() {
+                let _ = guard.send_request("history_push", payload.clone(), &self.log_path);
+            }
+        }
         if let Err(err) = self.invoke_first("history_push", payload) {
             warn!(?err, "history_push extension failed");
         }
@@ -476,6 +481,11 @@ impl ExtensionHost {
             "index": index,
             "session_path": session_path_json
         });
+        if let Some(bridge) = &self.bridge {
+            if let Ok(mut guard) = bridge.lock() {
+                let _ = guard.send_request("history_delete", payload.clone(), &self.log_path);
+            }
+        }
         let reply = self.invoke_first("history_delete", payload).ok()??;
         match reply {
             ExtensionReply::Ok {
@@ -1084,10 +1094,9 @@ impl ExtensionHost {
             if let Ok(mut guard) = bridge.lock() {
                 let _ = guard.send_request("history_seed", payload.clone(), &self.log_path);
             }
-        } else {
-            for script in &self.scripts {
-                let _ = Self::run_script(script, "history_seed", payload.clone(), &self.log_path);
-            }
+        }
+        for script in &self.scripts {
+            let _ = Self::run_script(script, "history_seed", payload.clone(), &self.log_path);
         }
         *self.last_seed_mtime.borrow_mut() = Some(seed.mtime);
     }
