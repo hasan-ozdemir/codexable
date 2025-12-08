@@ -765,6 +765,9 @@ impl ExtensionHost {
             for ancestor in exe.ancestors() {
                 candidates.push(ancestor.join("extensions"));
             }
+            if let Some(vendor_parent) = exe.parent().and_then(|p| p.parent()) {
+                candidates.push(vendor_parent.join("extensions"));
+            }
         }
         if let Ok(cwd) = env::current_dir() {
             candidates.push(cwd.join("extensions"));
