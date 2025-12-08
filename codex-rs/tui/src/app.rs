@@ -8,6 +8,8 @@ use crate::diff_render::DiffSummary;
 use crate::exec_command::strip_bash_lc_and_escape;
 use crate::file_search::FileSearchManager;
 use crate::history_cell::HistoryCell;
+use crate::history_cell::SessionInfoCell;
+use crate::history_cell::UserHistoryCell;
 use crate::model_migration::ModelMigrationOutcome;
 use crate::model_migration::migration_copy_for_config;
 use crate::model_migration::run_model_migration_prompt;
@@ -51,6 +53,7 @@ use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Wrap;
+use std::any::TypeId;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -1118,6 +1121,24 @@ impl App {
                     Err(err) => tracing::warn!("Failed to export transcript: {err}"),
                 }
             }
+            KeyEvent {
+                code: KeyCode::Char('1'),
+                modifiers: crossterm::event::KeyModifiers::CONTROL,
+                kind: KeyEventKind::Press,
+                ..
+            } => {
+                let transcript = self.transcript_cells.clone();
+                let width = tui.terminal.last_known_screen_size.width.max(80);
+                match tokio::task::spawn_blocking(move || {
+                    export_last_turn_to_temp_file(transcript, width)
+                })
+                .await
+                {
+                    Ok(Ok(_)) => {}
+                    Ok(Err(err)) => tracing::warn!("Failed to export last turn: {err}"),
+                    Err(err) => tracing::warn!("Failed to export last turn: {err}"),
+                }
+            }
             // Esc primes/advances backtracking only in normal (not working) mode
             // with the composer focused and empty. In any other state, forward
             // Esc so the active UI (e.g. status indicator, modals, popups)
@@ -1250,6 +1271,46 @@ fn write_transcript_file(lines: &[String]) -> Result<PathBuf> {
     file.flush().wrap_err("failed to flush transcript file")?;
 
     Ok(path)
+}
+
+fn export_last_turn_to_temp_file(
+    transcript: Vec<Arc<dyn HistoryCell>>,
+    width: u16,
+) -> Result<PathBuf> {
+    let Some(slice) = last_turn_cells(&transcript) else {
+        return Err(eyre!("No prompt to export yet"));
+    };
+    let lines = transcript_plain_lines(&slice, width);
+    if lines.is_empty() {
+        return Err(eyre!("No transcript available to export yet"));
+    }
+
+    let path = write_transcript_file(&lines)?;
+    open_file_with_default_app(&path)?;
+    Ok(path)
+}
+
+fn last_turn_cells(transcript: &[Arc<dyn HistoryCell>]) -> Option<Vec<Arc<dyn HistoryCell>>> {
+    if transcript.is_empty() {
+        return None;
+    }
+    let session_type = TypeId::of::<SessionInfoCell>();
+    let user_type = TypeId::of::<UserHistoryCell>();
+    let type_of = |cell: &Arc<dyn HistoryCell>| cell.as_any().type_id();
+
+    let start = transcript
+        .iter()
+        .rposition(|c| type_of(c) == session_type)
+        .map_or(0, |idx| idx + 1);
+
+    let user_idx = transcript
+        .iter()
+        .enumerate()
+        .skip(start)
+        .rev()
+        .find_map(|(idx, cell)| (type_of(cell) == user_type).then_some(idx))?;
+
+    Some(transcript.iter().skip(user_idx).cloned().collect())
 }
 
 #[cfg(target_os = "windows")]
@@ -1646,5 +1707,36 @@ mod tests {
             Some(AuthMode::ChatGPT),
             "unknown"
         ));
+    }
+
+    #[test]
+    fn last_turn_cells_returns_last_user_slice() {
+        let cells: Vec<Arc<dyn HistoryCell>> = vec![
+            Arc::new(UserHistoryCell {
+                message: "first".to_string(),
+            }),
+            Arc::new(AgentMessageCell::new(vec![Line::from("a1")], true)),
+            Arc::new(UserHistoryCell {
+                message: "second".to_string(),
+            }),
+            Arc::new(AgentMessageCell::new(vec![Line::from("a2")], true)),
+        ];
+
+        let slice = last_turn_cells(&cells).expect("slice present");
+        assert_eq!(slice.len(), 2);
+        let first = slice[0]
+            .as_any()
+            .downcast_ref::<UserHistoryCell>()
+            .expect("user cell");
+        assert_eq!(first.message, "second");
+    }
+
+    #[test]
+    fn last_turn_cells_none_without_user() {
+        let cells: Vec<Arc<dyn HistoryCell>> = vec![Arc::new(AgentMessageCell::new(
+            vec![Line::from("only agent")],
+            true,
+        ))];
+        assert!(last_turn_cells(&cells).is_none());
     }
 }
