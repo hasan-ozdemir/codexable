@@ -24,8 +24,6 @@ use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-use std::sync::mpsc::RecvTimeoutError;
-use std::sync::mpsc::channel;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -52,7 +50,8 @@ pub(crate) struct ExtensionHost {
     log_path: PathBuf,
     session_path: RefCell<Option<PathBuf>>,
     line_added_token: Arc<AtomicU64>,
-    ready_emitted: AtomicBool,
+    ready_emitted: Arc<AtomicBool>,
+    ready_token: Arc<AtomicU64>,
 }
 
 const HISTORY_PAGE_JUMP: usize = 10;
@@ -307,7 +306,8 @@ impl ExtensionHost {
             log_path,
             session_path: RefCell::new(None),
             line_added_token: Arc::new(AtomicU64::new(0)),
-            ready_emitted: AtomicBool::new(false),
+            ready_emitted: Arc::new(AtomicBool::new(false)),
+            ready_token: Arc::new(AtomicU64::new(0)),
         };
         host.log_event(format!(
             "Host initialized; discovered extensions: {:?}",
