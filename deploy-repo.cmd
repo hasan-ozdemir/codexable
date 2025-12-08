@@ -31,8 +31,9 @@ powershell -NoProfile -Command ^
   "  if($start -lt 0){throw 'workspace.package section not found'};" ^
   "  $found=$false;" ^
   "  for($i=$start+1;$i -lt $lines.Count;$i++){" ^
-  "    if($lines[$i] -match '^\\s*\\['){break}" ^
-  "    if($lines[$i] -match '^\\s*version\\s*='){ $lines[$i] = 'version = \"'+$v+'\"'; $found=$true; break }" ^
+  "    $trim=$lines[$i].TrimStart();" ^
+  "    if($trim.StartsWith('[')){break}" ^
+  "    if($trim.StartsWith('version')){ $lines[$i] = 'version = \"'+$v+'\"'; $found=$true; break }" ^
   "  }" ^
   "  if(-not $found){throw 'workspace.package version not found'}" ^
   "  Set-Content -Path $tomlPath -Value $lines -Encoding UTF8;" ^
