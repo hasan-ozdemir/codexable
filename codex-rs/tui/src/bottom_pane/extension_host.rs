@@ -149,7 +149,7 @@ impl std::fmt::Display for ExtensionHostError {
 impl std::error::Error for ExtensionHostError {}
 
 impl ExtensionBridge {
-    fn spawn(port: u16, log_path: &Path) -> Option<Self> {
+    fn spawn(port: u16) -> Option<Self> {
         let script = ExtensionHost::extension_client_script()?;
         let mut cmd = Command::new("node");
         cmd.arg(&script)
@@ -157,7 +157,7 @@ impl ExtensionBridge {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        let child = cmd.spawn().ok()?;
+        let mut child = cmd.spawn().ok()?;
 
         let addr = format!("127.0.0.1:{port}");
         for _ in 0..50 {
@@ -284,7 +284,7 @@ impl ExtensionHost {
     pub(crate) fn new() -> Self {
         let scripts = Self::discover_scripts();
         let log_path = Self::default_log_path();
-        let bridge = ExtensionBridge::spawn(5555, &log_path).map(|b| Arc::new(Mutex::new(b)));
+        let bridge = ExtensionBridge::spawn(5555).map(|b| Arc::new(Mutex::new(b)));
         let config = Self::load_config(&scripts, bridge.as_ref());
         let host = Self {
             scripts,
