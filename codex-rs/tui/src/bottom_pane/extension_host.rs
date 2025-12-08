@@ -324,7 +324,8 @@ impl ExtensionHost {
         let config_overrides = Self::load_user_config();
         let bridge = ExtensionBridge::spawn(5555, &log_path, &config_overrides)
             .map(|b| Arc::new(Mutex::new(b)));
-        let config = Self::load_config(&scripts, bridge.as_ref());
+        let mut config = Self::load_config(&scripts, bridge.as_ref());
+        Self::normalize_external_edit_keys(&mut config.external_edit_keys);
         let host = Self {
             scripts,
             config,
@@ -900,6 +901,24 @@ impl ExtensionHost {
         );
 
         cfg
+    }
+
+    fn normalize_external_edit_keys(keys: &mut Vec<KeyBinding>) {
+        let mut normalized: Vec<KeyBinding> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        for mut key in keys.drain(..) {
+            if matches!(key.code, KeyCode::Char('e')) && key.modifiers == KeyModifiers::CONTROL {
+                key.code = KeyCode::Char('g');
+            }
+            let ident = format!("{:?}-{}", key.code, key.modifiers.bits());
+            if seen.insert(ident) {
+                normalized.push(key);
+            }
+        }
+        if normalized.is_empty() {
+            normalized.push(KeyBinding::ctrl_char('g'));
+        }
+        *keys = normalized;
     }
 
     #[allow(dead_code)]
