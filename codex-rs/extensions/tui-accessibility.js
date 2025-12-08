@@ -51,7 +51,12 @@ let currentSound = null;
 function playSound(file) {
   const path = require("path");
   const { spawn } = require("child_process");
-  const full = path.join(__dirname, "sounds", file);
+  const fs = require("fs");
+  const bundled = path.join(__dirname, "sounds", file);
+  const jawsPath =
+    "C:\\\\ProgramData\\\\Freedom Scientific\\\\JAWS\\\\2025\\\\SETTINGS\\\\enu\\\\SOUNDS\\\\TypeDing2.wav";
+
+  const full = fs.existsSync(bundled) ? bundled : jawsPath;
 
   try {
     if (currentSound && !currentSound.killed) {
@@ -104,6 +109,11 @@ function handleNotify(payload, req) {
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
     return;
   }
+  if (event === "prompt_submitted") {
+    const ok = playSound("TypeDing2.wav");
+    respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
+    return;
+  }
   if (event === "conversation_interrupted") {
     const ok = playSound("TableLayerExit.wav");
     respond(ok ? { status: "ok" } : { status: "error", message: "sound failed" });
@@ -141,6 +151,4 @@ function main() {
 }
 
 main();
-
-
 

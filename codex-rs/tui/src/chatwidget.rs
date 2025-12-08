@@ -1768,6 +1768,7 @@ impl ChatWidget {
     }
 
     fn queue_user_message(&mut self, user_message: UserMessage) {
+        self.bottom_pane.notify_extensions("prompt_submitted");
         if self.bottom_pane.is_task_running() {
             self.queued_user_messages.push_back(user_message);
             self.refresh_queued_user_messages();
@@ -3013,6 +3014,10 @@ impl ChatWidget {
     /// Replace the composer content with the provided text and reset cursor.
     pub(crate) fn set_composer_text(&mut self, text: String) {
         self.bottom_pane.set_composer_text(text);
+    }
+
+    pub(crate) fn composer_text(&self) -> String {
+        self.bottom_pane.composer_text()
     }
 
     pub(crate) fn show_esc_backtrack_hint(&mut self) {

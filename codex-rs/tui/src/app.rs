@@ -1127,8 +1127,9 @@ impl App {
             } => {
                 let transcript = self.transcript_cells.clone();
                 let width = tui.terminal.last_known_screen_size.width.max(80);
+                let target_prompt = Some(self.chat_widget.composer_text());
                 match tokio::task::spawn_blocking(move || {
-                    export_last_turn_to_temp_file(transcript, width)
+                    export_prompt_turn_to_temp_file(transcript, width, target_prompt)
                 })
                 .await
                 {
@@ -1254,6 +1255,19 @@ fn transcript_plain_lines(cells: &[Arc<dyn HistoryCell>], width: u16) -> Vec<Str
     out
 }
 
+fn normalize_prompt_key(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let key = trimmed
+        .split_whitespace()
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(key)
+}
+
 fn write_transcript_file(lines: &[String]) -> Result<PathBuf> {
     let mut path = std::env::temp_dir();
     let timestamp = SystemTime::now()
@@ -1271,12 +1285,18 @@ fn write_transcript_file(lines: &[String]) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn export_last_turn_to_temp_file(
+fn export_prompt_turn_to_temp_file(
     transcript: Vec<Arc<dyn HistoryCell>>,
     width: u16,
+    target_prompt: Option<String>,
 ) -> Result<PathBuf> {
-    let Some(slice) = last_turn_cells(&transcript) else {
-        return Err(eyre!("No prompt to export yet"));
+    let target_prompt = target_prompt.unwrap_or_default();
+    let slice = if let Some(key) = normalize_prompt_key(&target_prompt)
+        && let Some(turn) = turn_for_prompt(&transcript, &key)
+    {
+        turn
+    } else {
+        last_turn_cells(&transcript).ok_or_else(|| eyre!("No prompt to export yet"))?
     };
     let lines = transcript_plain_lines(&slice, width);
     if lines.is_empty() {
@@ -1292,7 +1312,43 @@ fn last_turn_cells(transcript: &[Arc<dyn HistoryCell>]) -> Option<Vec<Arc<dyn Hi
     let user_idx = transcript
         .iter()
         .rposition(|cell| cell.as_any().downcast_ref::<UserHistoryCell>().is_some())?;
-    Some(transcript.iter().skip(user_idx).cloned().collect())
+    Some(turn_from_user_at(transcript, user_idx))
+}
+
+fn turn_for_prompt(
+    transcript: &[Arc<dyn HistoryCell>],
+    target_key: &str,
+) -> Option<Vec<Arc<dyn HistoryCell>>> {
+    let user_idx = transcript
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(idx, cell)| {
+            cell.as_any()
+                .downcast_ref::<UserHistoryCell>()
+                .and_then(|u| normalize_prompt_key(&u.message))
+                .filter(|key| key == target_key)
+                .map(|_| idx)
+        })?;
+    Some(turn_from_user_at(transcript, user_idx))
+}
+
+fn turn_from_user_at(
+    transcript: &[Arc<dyn HistoryCell>],
+    start: usize,
+) -> Vec<Arc<dyn HistoryCell>> {
+    let mut out = Vec::new();
+    if start >= transcript.len() {
+        return out;
+    }
+    out.push(Arc::clone(&transcript[start]));
+    for cell in transcript.iter().skip(start + 1) {
+        if cell.as_any().downcast_ref::<UserHistoryCell>().is_some() {
+            break;
+        }
+        out.push(Arc::clone(cell));
+    }
+    out
 }
 
 #[cfg(target_os = "windows")]
@@ -1720,5 +1776,39 @@ mod tests {
             true,
         ))];
         assert!(last_turn_cells(&cells).is_none());
+    }
+
+    #[test]
+    fn turn_for_prompt_picks_selected_user_turn_only() {
+        let cells: Vec<Arc<dyn HistoryCell>> = vec![
+            Arc::new(UserHistoryCell {
+                message: "first".to_string(),
+            }),
+            Arc::new(AgentMessageCell::new(vec![Line::from("a1")], true)),
+            Arc::new(UserHistoryCell {
+                message: "second prompt".to_string(),
+            }),
+            Arc::new(AgentMessageCell::new(vec![Line::from("a2 line1")], true)),
+            Arc::new(AgentMessageCell::new(vec![Line::from("a2 line2")], false)),
+            Arc::new(UserHistoryCell {
+                message: "third".to_string(),
+            }),
+            Arc::new(AgentMessageCell::new(vec![Line::from("a3")], true)),
+        ];
+
+        let key = normalize_prompt_key("second prompt").unwrap();
+        let slice = turn_for_prompt(&cells, &key).expect("slice present");
+        assert_eq!(slice.len(), 3);
+        let user = slice[0]
+            .as_any()
+            .downcast_ref::<UserHistoryCell>()
+            .expect("user cell");
+        assert_eq!(user.message, "second prompt");
+        assert!(
+            slice[2]
+                .as_any()
+                .downcast_ref::<UserHistoryCell>()
+                .is_none()
+        );
     }
 }
