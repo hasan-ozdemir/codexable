@@ -1,4 +1,4 @@
-[workspace]
+﻿[workspace]
 members = [
     "backend-client",
     "ansi-escape",
