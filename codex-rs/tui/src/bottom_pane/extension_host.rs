@@ -374,6 +374,7 @@ impl ExtensionHost {
         }
         if matches!(event, "line_added" | "prompt_submitted") {
             self.bump_ready_token();
+            self.schedule_ready_after_idle();
         }
         if self.bridge.is_none() {
             return;
@@ -408,6 +409,7 @@ impl ExtensionHost {
                 }
             });
         }
+        self.schedule_ready_after_idle();
     }
 
     fn cancel_line_added_timer(&self) {
