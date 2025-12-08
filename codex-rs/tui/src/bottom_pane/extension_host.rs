@@ -291,6 +291,18 @@ impl Drop for ExtensionBridge {
 
 #[cfg_attr(test, allow(dead_code))]
 impl ExtensionHost {
+    fn log_static(log_path: &Path, message: &str) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0);
+        if let Some(dir) = log_path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_path) {
+            let _ = writeln!(file, "{timestamp:.3} [tui] {message}");
+        }
+    }
     pub(crate) fn new() -> Self {
         // Scripts are now loaded exclusively by the extension-client; we still
         // enumerate for logging/diagnostics only.
@@ -455,6 +467,7 @@ impl ExtensionHost {
             }
             if let Some(bridge) = bridge {
                 if let Ok(mut guard) = bridge.lock() {
+                    Self::log_static(&log_path, "Emitting app_ready notify");
                     let _ =
                         guard.send_request("notify", json!({ "event": "app_ready" }), &log_path);
                 }
