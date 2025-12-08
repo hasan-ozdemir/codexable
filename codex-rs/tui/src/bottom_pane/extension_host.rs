@@ -576,6 +576,13 @@ impl ExtensionHost {
                     self.log_event(format!("Script {script:?} returned skip"));
                     continue;
                 }
+                Ok(ExtensionReply::Ok {
+                    text: None,
+                    payload: None,
+                }) => {
+                    self.log_event(format!("Script {script:?} returned empty ok; continuing"));
+                    continue;
+                }
                 Ok(reply) => {
                     self.log_event(format!("Script {script:?} returned ok"));
                     return Ok(Some(reply));
