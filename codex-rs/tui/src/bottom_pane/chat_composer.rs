@@ -1347,8 +1347,11 @@ impl ChatComposer {
             index: deleted_index,
         });
 
-        if next_text.as_deref() == Some("") && self.history.is_browsing() {
-            next_text = self.history.navigate_down(&self.app_event_tx);
+        if self.history.is_browsing()
+            && next_text.as_deref().map(str::is_empty).unwrap_or(true)
+            && let Some(down) = self.history.navigate_down(&self.app_event_tx)
+        {
+            next_text = Some(down);
         }
 
         next_text.or_else(|| Some(String::new()))
