@@ -312,7 +312,7 @@ impl ExtensionHost {
         // enumerate for logging/diagnostics only.
         let scripts = Self::discover_scripts();
         let log_path = Self::default_log_path();
-        let bridge = ExtensionBridge::spawn(5555).map(|b| Arc::new(Mutex::new(b)));
+        let bridge = ExtensionBridge::spawn(5555, &log_path).map(|b| Arc::new(Mutex::new(b)));
         let config = Self::load_config(&scripts, bridge.as_ref());
         let host = Self {
             scripts,
