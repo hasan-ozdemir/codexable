@@ -434,7 +434,7 @@ impl TextArea {
                 code: KeyCode::Home,
                 ..
             } => {
-                self.move_cursor_to_beginning_of_line(false);
+                self.move_cursor_to_visual_line_start();
             }
             KeyEvent {
                 code: KeyCode::Char('a'),
@@ -447,7 +447,7 @@ impl TextArea {
             KeyEvent {
                 code: KeyCode::End, ..
             } => {
-                self.move_cursor_to_end_of_line(false);
+                self.move_cursor_to_visual_line_end();
             }
             KeyEvent {
                 code: KeyCode::Char('e'),

@@ -5,8 +5,8 @@ use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::fs::OpenOptions;
@@ -322,8 +322,8 @@ impl ExtensionHost {
         let scripts = Self::discover_scripts();
         let log_path = Self::default_log_path();
         let config_overrides = Self::load_user_config();
-        let bridge =
-            ExtensionBridge::spawn(5555, &log_path, &config_overrides).map(|b| Arc::new(Mutex::new(b)));
+        let bridge = ExtensionBridge::spawn(5555, &log_path, &config_overrides)
+            .map(|b| Arc::new(Mutex::new(b)));
         let config = Self::load_config(&scripts, bridge.as_ref());
         let host = Self {
             scripts,
@@ -1196,7 +1196,9 @@ impl ExtensionHost {
             .unwrap_or_else(|| PathBuf::from(".codex/config.toml"));
         let data = fs::read_to_string(path);
         let Ok(raw) = data else { return map };
-        let Ok(value) = raw.parse::<toml::Value>() else { return map };
+        let Ok(value) = raw.parse::<toml::Value>() else {
+            return map;
+        };
         for key in [
             "a11y_hide_edit_marker",
             "a11y_hide_prompt_hints",
