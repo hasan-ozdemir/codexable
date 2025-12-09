@@ -74,6 +74,7 @@ pub async fn run_resume_picker(
     codex_home: &Path,
     default_provider: &str,
     show_all: bool,
+    filter_cwd: Option<PathBuf>,
 ) -> Result<ResumeSelection> {
     let alt = AltScreenGuard::enter(tui);
     let (bg_tx, bg_rx) = mpsc::unbounded_channel();
@@ -82,10 +83,8 @@ pub async fn run_resume_picker(
     let filter_cwd = if show_all || !folder_based_sessions_enabled() {
         None
     } else {
-        std::env::current_dir()
-            .ok()
-            .and_then(|p| p.canonicalize().ok())
-            .or_else(|| std::env::current_dir().ok())
+        let original = filter_cwd.clone();
+        filter_cwd.and_then(|p| p.canonicalize().ok()).or(original)
     };
 
     if folder_based_sessions_enabled() {

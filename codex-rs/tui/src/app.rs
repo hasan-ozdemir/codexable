@@ -15,6 +15,7 @@ use crate::model_migration::run_model_migration_prompt;
 use crate::pager_overlay::Overlay;
 use crate::render::highlight::highlight_bash_to_lines;
 use crate::render::renderable::Renderable;
+use crate::resume_picker;
 use crate::resume_picker::ResumeSelection;
 use crate::skill_error_prompt::SkillErrorPromptOutcome;
 use crate::skill_error_prompt::run_skill_error_prompt;
@@ -533,11 +534,17 @@ impl App {
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::OpenResumePicker => {
+                let picker_cwd = if resume_picker::folder_based_sessions_enabled() {
+                    Some(self.config.cwd.clone())
+                } else {
+                    None
+                };
                 match crate::resume_picker::run_resume_picker(
                     tui,
                     &self.config.codex_home,
                     &self.config.model_provider_id,
                     false,
+                    picker_cwd,
                 )
                 .await?
                 {

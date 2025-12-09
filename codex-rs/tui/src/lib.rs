@@ -562,6 +562,11 @@ async fn run_ratatui_app(
             &config.codex_home,
             &config.model_provider_id,
             cli.resume_show_all,
+            if resume_picker::folder_based_sessions_enabled() {
+                Some(config.cwd.clone())
+            } else {
+                None
+            },
         )
         .await?
         {
