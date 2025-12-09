@@ -42,8 +42,8 @@ let logPath = null;
 function log(msg) {
   if (!logPath) return;
   try {
-    const ts = Math.floor(Date.now() / 1000);
-    const stamp = `${Math.floor(ts / 60)}:${ts % 60}`;
+    const d = new Date();
+    const stamp = `${d.getMinutes()}:${d.getSeconds()}`;
     fs.appendFileSync(logPath, `${stamp} [ext message-history] ${msg}\n`);
   } catch {
     // ignore logging failures

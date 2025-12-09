@@ -14,8 +14,8 @@ let appReadyPlayed = false;
 function log(msg) {
   if (!LOG_PATH) return;
   try {
-    const ts = Math.floor(Date.now() / 1000);
-    const stamp = `${Math.floor(ts / 60)}:${ts % 60}`;
+    const d = new Date();
+    const stamp = `${d.getMinutes()}:${d.getSeconds()}`;
     require("fs").appendFileSync(LOG_PATH, `${stamp} [a11y] ${msg}\n`);
   } catch (err) {
     // best-effort logging only

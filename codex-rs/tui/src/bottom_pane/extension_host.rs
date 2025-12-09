@@ -1224,7 +1224,7 @@ impl ExtensionHost {
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        (secs / 60, secs % 60)
+        (secs / 60 % 60, secs % 60)
     }
 
     fn load_user_config() -> HashMap<String, bool> {
