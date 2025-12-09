@@ -850,6 +850,7 @@ impl ExtensionHost {
             editor_borderline: None,
             a11y_keyboard_shortcuts: None,
             a11y_audio_cues: None,
+            enable_codex_log: Some(true),
         };
 
         if let Some(bridge) = bridge {
@@ -1003,6 +1004,9 @@ impl ExtensionHost {
         if let Some(v) = obj.get("a11y_audio_cues").and_then(Value::as_bool) {
             cfg.a11y_audio_cues = Some(v);
         }
+        if let Some(v) = obj.get("enable_codex_log").and_then(Value::as_bool) {
+            cfg.enable_codex_log = Some(v);
+        }
 
         Some(cfg)
     }
@@ -1052,6 +1056,9 @@ impl ExtensionHost {
         }
         if let Some(v) = parsed.a11y_audio_cues {
             acc.a11y_audio_cues = Some(v);
+        }
+        if let Some(v) = parsed.enable_codex_log {
+            acc.enable_codex_log = Some(v);
         }
         acc
     }
@@ -1190,6 +1197,9 @@ impl ExtensionHost {
     }
 
     fn log_static(log_path: &Path, message: impl AsRef<str>) {
+        if !Self::logs_enabled_static() {
+            return;
+        }
         let (minutes, seconds) = Self::minute_second_now();
         if let Some(dir) = log_path.parent() {
             let _ = fs::create_dir_all(dir);
@@ -1200,12 +1210,7 @@ impl ExtensionHost {
     }
 
     pub(crate) fn log_event(&self, message: impl AsRef<str>) {
-        let enabled = env::var("codex_extensions_log")
-            .map(|v| v.eq_ignore_ascii_case("true"))
-            .ok()
-            .or_else(|| self.config_overrides.get("codex_extensions_log").copied())
-            .unwrap_or(false);
-        if !enabled {
+        if !self.logs_enabled() {
             return;
         }
         let log_path = &self.log_path;
@@ -1245,6 +1250,7 @@ impl ExtensionHost {
             "a11y_editor_borderline",
             "a11y_keyboard_shortcuts",
             "a11y_audio_cues",
+            "enable_codex_log",
             "codex_extensions_log",
             "codex_history_ignore_system_prompts",
         ] {

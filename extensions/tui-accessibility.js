@@ -63,40 +63,38 @@ function playSound(file) {
   }
   const full = bundled;
 
-  try {
-    if (currentSound && !currentSound.killed) {
-      currentSound.kill();
+  const candidates = ["powershell.exe", "pwsh.exe"];
+  for (const exe of candidates) {
+    try {
+      if (currentSound && !currentSound.killed) {
+        currentSound.kill();
+      }
+      const cmd = `(New-Object Media.SoundPlayer '${full.replace(/'/g, "''")}').PlaySync()`;
+      log(`playSound spawning ${exe} for ${full}`);
+      const child = spawn(exe, ["-NoProfile", "-NonInteractive", "-Command", cmd], {
+        stdio: "ignore",
+      });
+      currentSound = child;
+      child.on("exit", (code) => {
+        if (currentSound === child) {
+          currentSound = null;
+        }
+        if (code !== 0) {
+          log(`playSound exit ${code} via ${exe} for ${file} (resolved ${full})`);
+        } else {
+          log(`playSound completed via ${exe} for ${file}`);
+        }
+      });
+      child.on("error", (err) => {
+        log(`playSound failed via ${exe} for ${file} (resolved ${full}): ${err}`);
+      });
+      return true;
+    } catch (err) {
+      log(`playSound threw via ${exe} for ${file} (resolved ${full}): ${err}`);
     }
-    log(`playSound spawning powershell for ${full}`);
-    const child = spawn(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `(New-Object Media.SoundPlayer '${full.replace(/'/g, "''")}').PlaySync()`,
-      ],
-      { stdio: "ignore" }
-    );
-    currentSound = child;
-    child.on("exit", (code) => {
-      if (currentSound === child) {
-        currentSound = null;
-      }
-      if (code !== 0) {
-        log(`playSound exit ${code} for ${file} (resolved ${full})`);
-      } else {
-        log(`playSound completed for ${file}`);
-      }
-    });
-    child.on("error", (err) => {
-      log(`playSound failed for ${file} (resolved ${full}): ${err}`);
-    });
-    return true;
-  } catch (err) {
-    log(`playSound threw for ${file} (resolved ${full}): ${err}`);
-    return false;
   }
+  log(`playSound all spawns failed for ${file}`);
+  return false;
 }
 
 function handleNotify(payload, req) {
