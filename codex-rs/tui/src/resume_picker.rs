@@ -698,6 +698,20 @@ pub fn folder_based_sessions_enabled() -> bool {
     read_config_bool("folder_based_sessions", true)
 }
 
+pub fn sync_session_index_background(codex_home: &Path) {
+    if !folder_based_sessions_enabled() {
+        return;
+    }
+    tokio::spawn(build_session_index(codex_home.to_path_buf()));
+}
+
+pub async fn rebuild_session_index(codex_home: &Path) {
+    if !folder_based_sessions_enabled() {
+        return;
+    }
+    build_session_index(codex_home.to_path_buf()).await;
+}
+
 fn read_config_bool(key: &str, default_val: bool) -> bool {
     let path = dirs::home_dir()
         .map(|h| h.join(".codex").join("config.toml"))
