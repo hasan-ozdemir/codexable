@@ -143,6 +143,7 @@ mod render;
 mod resume_picker;
 mod selection_list;
 mod session_log;
+mod session_normalizer;
 mod shimmer;
 mod skill_error_prompt;
 mod slash_command;
@@ -301,6 +302,9 @@ pub async fn run_main(
 
     let config = load_config_or_exit(cli_kv_overrides.clone(), overrides.clone()).await;
     let codex_home = config.codex_home.clone();
+    if resume_picker::folder_based_sessions_enabled() {
+        let _ = session_normalizer::normalize_sessions(&codex_home).await;
+    }
     resume_picker::sync_session_index_background(&codex_home);
 
     if let Some(warning) = add_dir_warning_message(&cli.add_dir, &config.sandbox_policy) {
