@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use chrono::Utc;
 use codex_protocol::protocol::SessionMetaLine;
+use codex_protocol::ConversationId;
 use color_eyre::Result;
 use serde_json::Value;
 use tokio::task::spawn_blocking;
-use uuid::Uuid;
 
 /// Ensure every rollout file belongs to a single cwd.
 /// If a file contains messages from multiple cwds, split it into separate files,
@@ -88,11 +88,11 @@ fn split_if_mixed(path: &Path) -> Result<()> {
         .or(first_ts)
         .unwrap_or_else(|| Utc::now().format("%Y-%m-%dT%H-%M-%S").to_string());
 
-    for (cwd, mut items) in groups {
-        let new_id = Uuid::new_v4().to_string();
+    for (_cwd, mut items) in groups {
+        let new_id = ConversationId::new();
         for val in items.iter_mut() {
             if let Ok(mut meta) = serde_json::from_value::<SessionMetaLine>(val.clone()) {
-                meta.meta.id = Uuid::parse_str(&new_id).unwrap_or_else(|_| Uuid::new_v4());
+                meta.meta.id = new_id;
                 *val = serde_json::to_value(meta)?;
             }
         }
