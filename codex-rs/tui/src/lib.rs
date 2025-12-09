@@ -42,10 +42,26 @@ fn session_cwd(item: &ConversationItem) -> Option<std::path::PathBuf> {
 }
 
 fn paths_match(a: &std::path::Path, b: &std::path::Path) -> bool {
-    if let (Ok(ca), Ok(cb)) = (a.canonicalize(), b.canonicalize()) {
-        return ca == cb;
+    #[cfg(windows)]
+    {
+        fn norm(p: &std::path::Path) -> String {
+            let canon = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+            let mut s = canon.to_string_lossy().replace('/', "\\");
+            if let Some(rest) = s.strip_prefix("\\\\?\\") {
+                s = rest.to_string();
+            }
+            s.to_lowercase()
+        }
+        norm(a) == norm(b)
     }
-    a == b
+
+    #[cfg(not(windows))]
+    {
+        if let (Ok(ca), Ok(cb)) = (a.canonicalize(), b.canonicalize()) {
+            return ca == cb;
+        }
+        a == b
+    }
 }
 
 async fn latest_session_for_cwd(
@@ -510,7 +526,15 @@ async fn run_ratatui_app(
         }
     } else if cli.resume_last {
         let cwd_filter = if resume_picker::folder_based_sessions_enabled() {
-            cli.cwd.clone().or_else(|| std::env::current_dir().ok())
+            cli.cwd
+                .clone()
+                .and_then(|p| p.canonicalize().ok())
+                .or_else(|| {
+                    std::env::current_dir()
+                        .ok()
+                        .and_then(|p| p.canonicalize().ok())
+                })
+                .or_else(|| std::env::current_dir().ok())
         } else {
             None
         };

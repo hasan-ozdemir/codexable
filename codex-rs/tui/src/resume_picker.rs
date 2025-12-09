@@ -82,7 +82,10 @@ pub async fn run_resume_picker(
     let filter_cwd = if show_all || !folder_based_sessions_enabled() {
         None
     } else {
-        std::env::current_dir().ok()
+        std::env::current_dir()
+            .ok()
+            .and_then(|p| p.canonicalize().ok())
+            .or_else(|| std::env::current_dir().ok())
     };
 
     if folder_based_sessions_enabled() {
@@ -676,10 +679,26 @@ fn extract_session_meta_from_head(head: &[serde_json::Value]) -> (Option<PathBuf
 }
 
 fn paths_match(a: &Path, b: &Path) -> bool {
-    if let (Ok(ca), Ok(cb)) = (a.canonicalize(), b.canonicalize()) {
-        return ca == cb;
+    #[cfg(windows)]
+    {
+        fn norm(p: &Path) -> String {
+            let canon = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+            let mut s = canon.to_string_lossy().replace('/', "\\");
+            if let Some(rest) = s.strip_prefix("\\\\?\\") {
+                s = rest.to_string();
+            }
+            s.to_lowercase()
+        }
+        norm(a) == norm(b)
     }
-    a == b
+
+    #[cfg(not(windows))]
+    {
+        if let (Ok(ca), Ok(cb)) = (a.canonicalize(), b.canonicalize()) {
+            return ca == cb;
+        }
+        a == b
+    }
 }
 
 fn parse_timestamp_str(ts: &str) -> Option<DateTime<Utc>> {
