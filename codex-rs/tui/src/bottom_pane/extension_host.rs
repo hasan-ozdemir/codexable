@@ -71,6 +71,7 @@ pub(crate) struct ExtensionConfig {
     pub editor_borderline: Option<bool>,
     pub a11y_keyboard_shortcuts: Option<bool>,
     pub a11y_audio_cues: Option<bool>,
+    pub enable_codex_log: Option<bool>,
 }
 
 #[derive(Default)]
@@ -90,6 +91,7 @@ struct ConfigDelta {
     editor_borderline: Option<bool>,
     a11y_keyboard_shortcuts: Option<bool>,
     a11y_audio_cues: Option<bool>,
+    enable_codex_log: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -316,6 +318,29 @@ impl Drop for ExtensionBridge {
 }
 
 impl ExtensionHost {
+    fn logs_enabled_static() -> bool {
+        if let Ok(v) = env::var("enable_codex_log") {
+            return !matches!(v.to_lowercase().as_str(), "0" | "false" | "no");
+        }
+        if let Ok(v) = env::var("codex_extensions_log") {
+            return v.eq_ignore_ascii_case("true");
+        }
+        true
+    }
+
+    fn logs_enabled(&self) -> bool {
+        if let Ok(v) = env::var("enable_codex_log") {
+            return !matches!(v.to_lowercase().as_str(), "0" | "false" | "no");
+        }
+        if let Ok(v) = env::var("codex_extensions_log") {
+            return v.eq_ignore_ascii_case("true");
+        }
+        if let Some(v) = self.config_overrides.get("enable_codex_log") {
+            return *v;
+        }
+        self.config.enable_codex_log.unwrap_or(true)
+    }
+
     pub(crate) fn new() -> Self {
         // Scripts are now loaded exclusively by the extension-client; we still
         // enumerate for logging/diagnostics only.
