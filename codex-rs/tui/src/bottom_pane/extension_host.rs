@@ -318,26 +318,29 @@ impl Drop for ExtensionBridge {
 
 impl ExtensionHost {
     fn logs_enabled_static() -> bool {
-        if let Ok(v) = env::var("enable_codex_log") {
-            return !matches!(v.to_lowercase().as_str(), "0" | "false" | "no");
-        }
-        if let Ok(v) = env::var("codex_extensions_log") {
-            return v.eq_ignore_ascii_case("true");
+        if let Some(v) = Self::env_log_override() {
+            return v;
         }
         true
     }
 
     fn logs_enabled(&self) -> bool {
-        if let Ok(v) = env::var("enable_codex_log") {
-            return !matches!(v.to_lowercase().as_str(), "0" | "false" | "no");
-        }
-        if let Ok(v) = env::var("codex_extensions_log") {
-            return v.eq_ignore_ascii_case("true");
+        if let Some(v) = Self::env_log_override() {
+            return v;
         }
         if let Some(v) = self.config_overrides.get("enable_codex_log") {
             return *v;
         }
         self.config.enable_codex_log.unwrap_or(true)
+    }
+
+    fn env_log_override() -> Option<bool> {
+        for key in ["ENABLE_CODEX_LOG", "enable_codex_log"] {
+            if let Ok(v) = env::var(key) {
+                return Some(!matches!(v.to_lowercase().as_str(), "0" | "false" | "no"));
+            }
+        }
+        None
     }
 
     pub(crate) fn new() -> Self {
