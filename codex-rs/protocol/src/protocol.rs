@@ -4,6 +4,7 @@
 //! between user and agent.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -1096,26 +1097,41 @@ impl InitialHistory {
     pub fn get_event_msgs(&self) -> Option<Vec<EventMsg>> {
         match self {
             InitialHistory::New => None,
-            InitialHistory::Resumed(resumed) => Some(
-                resumed
-                    .history
-                    .iter()
-                    .filter_map(|ri| match ri {
-                        RolloutItem::EventMsg(ev) => Some(ev.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-            ),
-            InitialHistory::Forked(items) => Some(
-                items
-                    .iter()
-                    .filter_map(|ri| match ri {
-                        RolloutItem::EventMsg(ev) => Some(ev.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-            ),
+            InitialHistory::Resumed(resumed) => Some(rollout_events(&resumed.history)),
+            InitialHistory::Forked(items) => Some(rollout_events(items)),
         }
+    }
+}
+
+fn rollout_events(items: &[RolloutItem]) -> Vec<EventMsg> {
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut events = Vec::new();
+
+    for item in items {
+        if let RolloutItem::EventMsg(ev) = item {
+            if record_event(&mut seen, ev) {
+                events.push(ev.clone());
+            }
+        }
+    }
+
+    events
+}
+
+fn record_event(seen: &mut HashSet<String>, ev: &EventMsg) -> bool {
+    if let Some(fingerprint) = event_fingerprint(ev) {
+        return seen.insert(fingerprint);
+    }
+    true
+}
+
+fn event_fingerprint(ev: &EventMsg) -> Option<String> {
+    match ev {
+        EventMsg::UserMessage(user) => Some(format!("user:{}", user.message)),
+        EventMsg::AgentMessage(agent) => Some(format!("agent:{}", agent.message)),
+        EventMsg::AgentReasoning(reason) => Some(format!("reason:{}", reason.text)),
+        EventMsg::AgentReasoningRawContent(reason) => Some(format!("reason_raw:{}", reason.text)),
+        _ => None,
     }
 }
 

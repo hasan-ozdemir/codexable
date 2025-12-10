@@ -609,8 +609,9 @@ mod tests {
     async fn create_test_git_repo(temp_dir: &TempDir) -> PathBuf {
         let repo_path = temp_dir.path().join("repo");
         fs::create_dir(&repo_path).expect("Failed to create repo dir");
+        let null_cfg = if cfg!(windows) { "NUL" } else { "/dev/null" };
         let envs = vec![
-            ("GIT_CONFIG_GLOBAL", "/dev/null"),
+            ("GIT_CONFIG_GLOBAL", null_cfg),
             ("GIT_CONFIG_NOSYSTEM", "1"),
         ];
 
@@ -652,13 +653,18 @@ mod tests {
             .await
             .expect("Failed to add files");
 
-        Command::new("git")
+        let commit_out = Command::new("git")
             .envs(envs.clone())
             .args(["commit", "-m", "Initial commit"])
             .current_dir(&repo_path)
             .output()
             .await
             .expect("Failed to commit");
+        assert!(
+            commit_out.status.success(),
+            "git commit failed: {:?}",
+            commit_out
+        );
 
         repo_path
     }

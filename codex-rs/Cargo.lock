@@ -1173,6 +1173,7 @@ dependencies = [
  "escargot",
  "eventsource-stream",
  "futures",
+ "hex",
  "http",
  "image",
  "indexmap 2.12.0",
@@ -1642,7 +1643,7 @@ dependencies = [
 
 [[package]]
 name = "codex-tui2"
-version = "0.0.0"
+version = "0.65.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1654,7 +1655,7 @@ dependencies = [
 
 [[package]]
 name = "codex-utils-absolute-path"
-version = "0.0.0"
+version = "0.65.1"
 dependencies = [
  "path-absolutize",
  "serde",

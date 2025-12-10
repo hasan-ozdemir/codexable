@@ -14,8 +14,10 @@ use time::macros::format_description;
 use uuid::Uuid;
 
 use super::SESSIONS_SUBDIR;
+use crate::event_mapping::parse_turn_item;
 use crate::protocol::EventMsg;
 use codex_file_search as file_search;
+use codex_protocol::items::TurnItem;
 use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::RolloutLine;
 use codex_protocol::protocol::SessionSource;
@@ -140,7 +142,10 @@ pub(crate) async fn get_conversations(
 
 /// Load conversation file paths from disk using directory traversal.
 ///
-/// Directory layout: `~/.codex/sessions/YYYY/MM/DD/rollout-YYYY-MM-DDThh-mm-ss-<uuid>.jsonl`
+/// Directory layout:
+/// - legacy: `~/.codex/sessions/YYYY/MM/DD/rollout-YYYY-MM-DDThh-mm-ss-<uuid>.jsonl`
+/// - folder-based: `~/.codex/sessions/YYYY/MM/DD/<cwd_slug>/rollout-YYYY-MM-DDThh-mm-ss-<uuid>.jsonl`
+///
 /// Returned newest (latest) first.
 async fn traverse_directories_for_paths(
     root: PathBuf,
@@ -174,18 +179,10 @@ async fn traverse_directories_for_paths(
                 if scanned_files >= MAX_SCAN_FILES {
                     break 'outer;
                 }
-                let mut day_files = collect_files(day_path, |name_str, path| {
-                    if !name_str.starts_with("rollout-") || !name_str.ends_with(".jsonl") {
-                        return None;
-                    }
-
-                    parse_timestamp_uuid_from_filename(name_str)
-                        .map(|(ts, id)| (ts, id, name_str.to_string(), path.to_path_buf()))
-                })
-                .await?;
+                let mut day_files = collect_rollout_files(day_path).await?;
                 // Stable ordering within the same second: (timestamp desc, uuid desc)
-                day_files.sort_by_key(|(ts, sid, _name_str, _path)| (Reverse(*ts), Reverse(*sid)));
-                for (ts, sid, _name_str, path) in day_files.into_iter() {
+                day_files.sort_by_key(|(ts, sid, _path)| (Reverse(*ts), Reverse(*sid)));
+                for (ts, sid, path) in day_files.into_iter() {
                     scanned_files += 1;
                     if scanned_files >= MAX_SCAN_FILES && items.len() >= page_size {
                         more_matches_available = true;
@@ -218,27 +215,30 @@ async fn traverse_directories_for_paths(
                     {
                         continue;
                     }
-                    // Apply filters: must have session meta and at least one user message event
-                    if summary.saw_session_meta && summary.saw_user_event {
-                        let HeadTailSummary {
-                            head,
-                            created_at,
-                            mut updated_at,
-                            ..
-                        } = summary;
-                        if updated_at.is_none() {
-                            updated_at = file_modified_rfc3339(&path)
-                                .await
-                                .unwrap_or(None)
-                                .or_else(|| created_at.clone());
-                        }
-                        items.push(ConversationItem {
-                            path,
-                            head,
-                            created_at,
-                            updated_at,
-                        });
+                    // Apply filters: require session meta; include sessions even if no user event
+                    // was captured so resumable files do not disappear from the picker.
+                    if !summary.saw_session_meta {
+                        continue;
                     }
+
+                    let HeadTailSummary {
+                        head,
+                        created_at,
+                        mut updated_at,
+                        ..
+                    } = summary;
+                    if updated_at.is_none() {
+                        updated_at = file_modified_rfc3339(&path)
+                            .await
+                            .unwrap_or(None)
+                            .or_else(|| created_at.clone());
+                    }
+                    items.push(ConversationItem {
+                        path,
+                        head,
+                        created_at,
+                        updated_at,
+                    });
                 }
             }
         }
@@ -333,21 +333,78 @@ where
     Ok(collected)
 }
 
-fn parse_timestamp_uuid_from_filename(name: &str) -> Option<(OffsetDateTime, Uuid)> {
-    // Expected: rollout-YYYY-MM-DDThh-mm-ss-<uuid>.jsonl
+async fn collect_rollout_files(
+    day_path: &Path,
+) -> io::Result<Vec<(OffsetDateTime, uuid::Uuid, PathBuf)>> {
+    let mut files = collect_files(day_path, |name_str, path| {
+        if !name_str.starts_with("rollout-") || !name_str.ends_with(".jsonl") {
+            return None;
+        }
+        parse_timestamp_uuid_from_filename(name_str).map(|(ts, id)| (ts, id, path.to_path_buf()))
+    })
+    .await?;
+
+    let mut dir = tokio::fs::read_dir(day_path).await?;
+    while let Some(entry) = dir.next_entry().await? {
+        let path = entry.path();
+        if !entry
+            .file_type()
+            .await
+            .map(|ft| ft.is_dir())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let mut sub_files = collect_files(&path, |name_str, path| {
+            if !name_str.starts_with("rollout-") || !name_str.ends_with(".jsonl") {
+                return None;
+            }
+            parse_timestamp_uuid_from_filename(name_str)
+                .map(|(ts, id)| (ts, id, path.to_path_buf()))
+        })
+        .await?;
+        files.append(&mut sub_files);
+    }
+
+    Ok(files)
+}
+
+pub(crate) fn parse_timestamp_uuid_from_filename(name: &str) -> Option<(OffsetDateTime, Uuid)> {
+    // Expected: rollout-YYYY-MM-DDThh-mm-ss-<uuid>[ -<extra_uuid>...].jsonl
+    // Handle files that were renamed with an additional UUID suffix by
+    // parsing the timestamp from the fixed-length prefix and taking the
+    // *last* UUID as the conversation id.
     let core = name.strip_prefix("rollout-")?.strip_suffix(".jsonl")?;
 
+    // 19 chars: "YYYY-MM-DDThh-mm-ss"
+    let ts_prefix = core.get(..19)?;
+    let timestamp_format: &[FormatItem] =
+        format_description!("[year]-[month]-[day]T[hour]-[minute]-[second]");
+    let ts = PrimitiveDateTime::parse(ts_prefix, timestamp_format)
+        .ok()
+        .map(PrimitiveDateTime::assume_utc);
+
     // Scan from the right for a '-' such that the suffix parses as a UUID.
-    let (sep_idx, uuid) = core
+    let uuid = core
         .match_indices('-')
         .rev()
-        .find_map(|(i, _)| Uuid::parse_str(&core[i + 1..]).ok().map(|u| (i, u)))?;
+        .find_map(|(i, _)| Uuid::parse_str(&core[i + 1..]).ok())?;
 
-    let ts_str = &core[..sep_idx];
-    let format: &[FormatItem] =
-        format_description!("[year]-[month]-[day]T[hour]-[minute]-[second]");
-    let ts = PrimitiveDateTime::parse(ts_str, format).ok()?.assume_utc();
-    Some((ts, uuid))
+    match ts {
+        Some(ts) => Some((ts, uuid)),
+        // Fallback to the legacy parser if the fixed prefix fails.
+        None => {
+            let (sep_idx, uuid) = core
+                .match_indices('-')
+                .rev()
+                .find_map(|(i, _)| Uuid::parse_str(&core[i + 1..]).ok().map(|u| (i, u)))?;
+            let ts_str = &core[..sep_idx];
+            let ts = PrimitiveDateTime::parse(ts_str, timestamp_format)
+                .ok()?
+                .assume_utc();
+            Some((ts, uuid))
+        }
+    }
 }
 
 struct ProviderMatcher<'a> {
@@ -413,8 +470,13 @@ async fn read_head_summary(path: &Path, head_limit: usize) -> io::Result<HeadTai
                     .created_at
                     .clone()
                     .or_else(|| Some(rollout_line.timestamp.clone()));
-                if let Ok(val) = serde_json::to_value(item) {
+                if let Ok(val) = serde_json::to_value(&item) {
                     summary.head.push(val);
+                }
+                if parse_turn_item(&item)
+                    .is_some_and(|turn| matches!(turn, TurnItem::UserMessage(_)))
+                {
+                    summary.saw_user_event = true;
                 }
             }
             RolloutItem::TurnContext(_) => {
@@ -426,6 +488,9 @@ async fn read_head_summary(path: &Path, head_limit: usize) -> io::Result<HeadTai
             RolloutItem::EventMsg(ev) => {
                 if matches!(ev, EventMsg::UserMessage(_)) {
                     summary.saw_user_event = true;
+                }
+                if let Ok(val) = serde_json::to_value(&ev) {
+                    summary.head.push(val);
                 }
             }
         }

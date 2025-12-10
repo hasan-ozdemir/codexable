@@ -193,36 +193,50 @@ async fn test_list_conversations_latest_first() {
         .join("01")
         .join(format!("rollout-2025-01-01T12-00-00-{u1}.jsonl"));
 
-    let head_3 = vec![serde_json::json!({
-        "id": u3,
-        "timestamp": "2025-01-03T12-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
-    let head_2 = vec![serde_json::json!({
-        "id": u2,
-        "timestamp": "2025-01-02T12-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
-    let head_1 = vec![serde_json::json!({
-        "id": u1,
-        "timestamp": "2025-01-01T12-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
+    let user_head = serde_json::json!({
+        "type": "user_message",
+        "message": "Hello from user",
+    });
+
+    let head_3 = vec![
+        serde_json::json!({
+            "id": u3,
+            "timestamp": "2025-01-03T12-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head.clone(),
+    ];
+    let head_2 = vec![
+        serde_json::json!({
+            "id": u2,
+            "timestamp": "2025-01-02T12-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head.clone(),
+    ];
+    let head_1 = vec![
+        serde_json::json!({
+            "id": u1,
+            "timestamp": "2025-01-01T12-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head,
+    ];
 
     let updated_times: Vec<Option<String>> =
         page.items.iter().map(|i| i.updated_at.clone()).collect();
@@ -254,6 +268,137 @@ async fn test_list_conversations_latest_first() {
     };
 
     assert_eq!(page, expected);
+}
+
+#[tokio::test]
+async fn test_lists_session_with_user_response_item() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path();
+    let ts_str = "2025-12-08T12-34-56";
+    let id = ConversationId::new();
+
+    let dir = home.join("sessions").join("2025").join("12").join("08");
+    fs::create_dir_all(&dir).unwrap();
+
+    let filename = format!("rollout-{ts_str}-{id}.jsonl");
+    let path = dir.join(&filename);
+    let mut file = File::create(&path).unwrap();
+
+    let meta = RolloutLine {
+        timestamp: ts_str.to_string(),
+        item: RolloutItem::SessionMeta(SessionMetaLine {
+            meta: SessionMeta {
+                id,
+                timestamp: ts_str.to_string(),
+                cwd: ".".into(),
+                originator: "test_originator".to_string(),
+                cli_version: "test_version".to_string(),
+                instructions: None,
+                source: SessionSource::Cli,
+                model_provider: Some(TEST_PROVIDER.to_string()),
+            },
+            git: None,
+        }),
+    };
+    writeln!(file, "{}", serde_json::to_string(&meta).unwrap()).unwrap();
+
+    let user_line = RolloutLine {
+        timestamp: ts_str.to_string(),
+        item: RolloutItem::ResponseItem(ResponseItem::Message {
+            id: None,
+            role: "user".to_string(),
+            content: vec![ContentItem::InputText {
+                text: "hello".to_string(),
+            }],
+        }),
+    };
+    writeln!(file, "{}", serde_json::to_string(&user_line).unwrap()).unwrap();
+
+    let provider_filter = provider_vec(&[TEST_PROVIDER]);
+    let page = get_conversations(
+        home,
+        5,
+        None,
+        INTERACTIVE_SESSION_SOURCES,
+        Some(provider_filter.as_slice()),
+        TEST_PROVIDER,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(page.items.len(), 1);
+    let item = page.items.first().unwrap();
+    assert_eq!(item.path, path);
+    assert_eq!(item.created_at.as_deref(), Some(ts_str));
+    assert!(item.head.len() >= 2);
+}
+
+#[tokio::test]
+async fn test_list_allows_extra_uuid_suffix() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path();
+    let ts_str = "2025-12-10T02-59-56";
+    let id = ConversationId::new();
+    let extra = ConversationId::new();
+
+    let dir = home
+        .join("sessions")
+        .join("2025")
+        .join("12")
+        .join("10")
+        .join("slug");
+    fs::create_dir_all(&dir).unwrap();
+
+    let filename = format!("rollout-{ts_str}-{id}-{extra}.jsonl");
+    let path = dir.join(&filename);
+    let mut file = File::create(&path).unwrap();
+
+    let meta = RolloutLine {
+        timestamp: ts_str.to_string(),
+        item: RolloutItem::SessionMeta(SessionMetaLine {
+            meta: SessionMeta {
+                id,
+                timestamp: ts_str.to_string(),
+                cwd: ".".into(),
+                originator: "test_originator".to_string(),
+                cli_version: "test_version".to_string(),
+                instructions: None,
+                source: SessionSource::Cli,
+                model_provider: Some(TEST_PROVIDER.to_string()),
+            },
+            git: None,
+        }),
+    };
+    writeln!(file, "{}", serde_json::to_string(&meta).unwrap()).unwrap();
+
+    let user_line = RolloutLine {
+        timestamp: ts_str.to_string(),
+        item: RolloutItem::ResponseItem(ResponseItem::Message {
+            id: None,
+            role: "user".to_string(),
+            content: vec![ContentItem::InputText {
+                text: "hello".to_string(),
+            }],
+        }),
+    };
+    writeln!(file, "{}", serde_json::to_string(&user_line).unwrap()).unwrap();
+
+    let provider_filter = provider_vec(&[TEST_PROVIDER]);
+    let page = get_conversations(
+        home,
+        5,
+        None,
+        INTERACTIVE_SESSION_SOURCES,
+        Some(provider_filter.as_slice()),
+        TEST_PROVIDER,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(page.items.len(), 1);
+    let item = page.items.first().unwrap();
+    assert_eq!(item.path, path);
+    assert_eq!(item.created_at.as_deref(), Some(ts_str));
 }
 
 #[tokio::test]
@@ -321,6 +466,10 @@ async fn test_pagination_cursor() {
     )
     .await
     .unwrap();
+    let user_head = serde_json::json!({
+        "type": "user_message",
+        "message": "Hello from user",
+    });
     let p5 = home
         .join("sessions")
         .join("2025")
@@ -333,26 +482,32 @@ async fn test_pagination_cursor() {
         .join("03")
         .join("04")
         .join(format!("rollout-2025-03-04T09-00-00-{u4}.jsonl"));
-    let head_5 = vec![serde_json::json!({
-        "id": u5,
-        "timestamp": "2025-03-05T09-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
-    let head_4 = vec![serde_json::json!({
-        "id": u4,
-        "timestamp": "2025-03-04T09-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
+    let head_5 = vec![
+        serde_json::json!({
+            "id": u5,
+            "timestamp": "2025-03-05T09-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head.clone(),
+    ];
+    let head_4 = vec![
+        serde_json::json!({
+            "id": u4,
+            "timestamp": "2025-03-04T09-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head.clone(),
+    ];
     let updated_page1: Vec<Option<String>> =
         page1.items.iter().map(|i| i.updated_at.clone()).collect();
     let expected_cursor1: Cursor =
@@ -400,26 +555,32 @@ async fn test_pagination_cursor() {
         .join("03")
         .join("02")
         .join(format!("rollout-2025-03-02T09-00-00-{u2}.jsonl"));
-    let head_3 = vec![serde_json::json!({
-        "id": u3,
-        "timestamp": "2025-03-03T09-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
-    let head_2 = vec![serde_json::json!({
-        "id": u2,
-        "timestamp": "2025-03-02T09-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
+    let head_3 = vec![
+        serde_json::json!({
+            "id": u3,
+            "timestamp": "2025-03-03T09-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head.clone(),
+    ];
+    let head_2 = vec![
+        serde_json::json!({
+            "id": u2,
+            "timestamp": "2025-03-02T09-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head.clone(),
+    ];
     let updated_page2: Vec<Option<String>> =
         page2.items.iter().map(|i| i.updated_at.clone()).collect();
     let expected_cursor2: Cursor =
@@ -461,16 +622,19 @@ async fn test_pagination_cursor() {
         .join("03")
         .join("01")
         .join(format!("rollout-2025-03-01T09-00-00-{u1}.jsonl"));
-    let head_1 = vec![serde_json::json!({
-        "id": u1,
-        "timestamp": "2025-03-01T09-00-00",
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
+    let head_1 = vec![
+        serde_json::json!({
+            "id": u1,
+            "timestamp": "2025-03-01T09-00-00",
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        user_head.clone(),
+    ];
     let updated_page3: Vec<Option<String>> =
         page3.items.iter().map(|i| i.updated_at.clone()).collect();
     let expected_page3 = ConversationsPage {
@@ -518,16 +682,22 @@ async fn test_get_conversation_contents() {
         .join("04")
         .join("01")
         .join(format!("rollout-2025-04-01T10-30-00-{uuid}.jsonl"));
-    let expected_head = vec![serde_json::json!({
-        "id": uuid,
-        "timestamp": ts,
-        "instructions": null,
-        "cwd": ".",
-        "originator": "test_originator",
-        "cli_version": "test_version",
-        "source": "vscode",
-        "model_provider": "test-provider",
-    })];
+    let expected_head = vec![
+        serde_json::json!({
+            "id": uuid,
+            "timestamp": ts,
+            "instructions": null,
+            "cwd": ".",
+            "originator": "test_originator",
+            "cli_version": "test_version",
+            "source": "vscode",
+            "model_provider": "test-provider",
+        }),
+        serde_json::json!({
+            "type": "user_message",
+            "message": "Hello from user",
+        }),
+    ];
     let expected_page = ConversationsPage {
         items: vec![ConversationItem {
             path: expected_path,
@@ -686,17 +856,24 @@ async fn test_stable_ordering_same_second_pagination() {
         .join("07")
         .join("01")
         .join(format!("rollout-2025-07-01T00-00-00-{u2}.jsonl"));
+    let user_head = serde_json::json!({
+        "type": "user_message",
+        "message": "Hello from user",
+    });
     let head = |u: Uuid| -> Vec<serde_json::Value> {
-        vec![serde_json::json!({
-            "id": u,
-            "timestamp": ts,
-            "instructions": null,
-            "cwd": ".",
-            "originator": "test_originator",
-            "cli_version": "test_version",
-            "source": "vscode",
-            "model_provider": "test-provider",
-        })]
+        vec![
+            serde_json::json!({
+                "id": u,
+                "timestamp": ts,
+                "instructions": null,
+                "cwd": ".",
+                "originator": "test_originator",
+                "cli_version": "test_version",
+                "source": "vscode",
+                "model_provider": "test-provider",
+            }),
+            user_head.clone(),
+        ]
     };
     let updated_page1: Vec<Option<String>> =
         page1.items.iter().map(|i| i.updated_at.clone()).collect();

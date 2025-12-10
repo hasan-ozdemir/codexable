@@ -23,6 +23,7 @@ use super::list::ConversationsPage;
 use super::list::Cursor;
 use super::list::get_conversations;
 use super::policy::is_persisted_response_item;
+use crate::config::CONFIG_TOML_FILE;
 use crate::config::Config;
 use crate::default_client::originator;
 use crate::git_info::collect_git_info;
@@ -216,6 +217,7 @@ impl RolloutRecorder {
 
         let mut items: Vec<RolloutItem> = Vec::new();
         let mut conversation_id: Option<ConversationId> = None;
+        let mut first_timestamp: Option<String> = None;
         for line in text.lines() {
             if line.trim().is_empty() {
                 continue;
@@ -230,28 +232,33 @@ impl RolloutRecorder {
 
             // Parse the rollout line structure
             match serde_json::from_value::<RolloutLine>(v.clone()) {
-                Ok(rollout_line) => match rollout_line.item {
-                    RolloutItem::SessionMeta(session_meta_line) => {
-                        // Use the FIRST SessionMeta encountered in the file as the canonical
-                        // conversation id and main session information. Keep all items intact.
-                        if conversation_id.is_none() {
-                            conversation_id = Some(session_meta_line.meta.id);
+                Ok(rollout_line) => {
+                    if first_timestamp.is_none() {
+                        first_timestamp = Some(rollout_line.timestamp.clone());
+                    }
+                    match rollout_line.item {
+                        RolloutItem::SessionMeta(session_meta_line) => {
+                            // Use the FIRST SessionMeta encountered in the file as the canonical
+                            // conversation id and main session information. Keep all items intact.
+                            if conversation_id.is_none() {
+                                conversation_id = Some(session_meta_line.meta.id);
+                            }
+                            items.push(RolloutItem::SessionMeta(session_meta_line));
                         }
-                        items.push(RolloutItem::SessionMeta(session_meta_line));
+                        RolloutItem::ResponseItem(item) => {
+                            items.push(RolloutItem::ResponseItem(item));
+                        }
+                        RolloutItem::Compacted(item) => {
+                            items.push(RolloutItem::Compacted(item));
+                        }
+                        RolloutItem::TurnContext(item) => {
+                            items.push(RolloutItem::TurnContext(item));
+                        }
+                        RolloutItem::EventMsg(_ev) => {
+                            items.push(RolloutItem::EventMsg(_ev));
+                        }
                     }
-                    RolloutItem::ResponseItem(item) => {
-                        items.push(RolloutItem::ResponseItem(item));
-                    }
-                    RolloutItem::Compacted(item) => {
-                        items.push(RolloutItem::Compacted(item));
-                    }
-                    RolloutItem::TurnContext(item) => {
-                        items.push(RolloutItem::TurnContext(item));
-                    }
-                    RolloutItem::EventMsg(_ev) => {
-                        items.push(RolloutItem::EventMsg(_ev));
-                    }
-                },
+                }
                 Err(e) => {
                     warn!("failed to parse rollout line: {v:?}, error: {e}");
                 }
@@ -263,8 +270,54 @@ impl RolloutRecorder {
             items.len(),
             conversation_id
         );
-        let conversation_id = conversation_id
-            .ok_or_else(|| IoError::other("failed to parse conversation ID from rollout file"))?;
+        let conversation_id = match conversation_id {
+            Some(id) => id,
+            None => {
+                // Backward-compat: some legacy rollouts may lack a SessionMeta line.
+                // Try to derive the id from the filename and synthesize a minimal
+                // SessionMeta so replay keeps working instead of failing.
+                let filename_id = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .and_then(super::list::parse_timestamp_uuid_from_filename)
+                    .map(|(_ts, id)| id);
+
+                let uuid = filename_id.ok_or_else(|| {
+                    IoError::other("failed to parse conversation ID from rollout file")
+                })?;
+                let id = ConversationId::from_string(&uuid.to_string()).unwrap_or_default();
+
+                let cwd = items.iter().find_map(|item| match item {
+                    RolloutItem::SessionMeta(meta) => Some(meta.meta.cwd.clone()),
+                    RolloutItem::TurnContext(ctx) => Some(ctx.cwd.clone()),
+                    _ => None,
+                });
+
+                let timestamp = first_timestamp.unwrap_or_else(|| {
+                    OffsetDateTime::now_utc()
+                        .format(&time::format_description::well_known::Rfc3339)
+                        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+                });
+
+                let synthetic_meta = SessionMetaLine {
+                    meta: SessionMeta {
+                        id,
+                        timestamp,
+                        cwd: cwd.unwrap_or_else(|| Path::new(".").to_path_buf()),
+                        originator: originator().value.clone(),
+                        cli_version: env!("CARGO_PKG_VERSION").to_string(),
+                        instructions: None,
+                        source: SessionSource::Unknown,
+                        model_provider: None,
+                    },
+                    git: None,
+                };
+
+                // Ensure consumers see a meta line first for consistency.
+                items.insert(0, RolloutItem::SessionMeta(synthetic_meta));
+                id
+            }
+        };
 
         if items.is_empty() {
             return Ok(InitialHistory::New);
@@ -320,6 +373,9 @@ fn create_log_file(
     dir.push(timestamp.year().to_string());
     dir.push(format!("{:02}", u8::from(timestamp.month())));
     dir.push(format!("{:02}", timestamp.day()));
+    if folder_based_sessions_enabled(&config.codex_home) {
+        dir.push(super::path_utils::slug_for_cwd(&config.cwd));
+    }
     fs::create_dir_all(&dir)?;
 
     // Custom format for YYYY-MM-DDThh-mm-ss. Use `-` instead of `:` for
@@ -344,6 +400,27 @@ fn create_log_file(
         conversation_id,
         timestamp,
     })
+}
+
+fn folder_based_sessions_enabled(codex_home: &Path) -> bool {
+    const ENV_KEYS: [&str; 2] = ["FOLDER_BASED_SESSIONS", "folder_based_sessions"];
+    for key in ENV_KEYS {
+        if let Ok(val) = std::env::var(key) {
+            return !matches!(val.to_lowercase().as_str(), "0" | "false" | "no");
+        }
+    }
+
+    let cfg_path = codex_home.join(CONFIG_TOML_FILE);
+    if let Ok(raw) = std::fs::read_to_string(cfg_path)
+        && let Ok(val) = raw.parse::<toml::Value>()
+        && let Some(b) = val
+            .get("folder_based_sessions")
+            .and_then(toml::Value::as_bool)
+    {
+        return b;
+    }
+
+    true
 }
 
 async fn rollout_writer(

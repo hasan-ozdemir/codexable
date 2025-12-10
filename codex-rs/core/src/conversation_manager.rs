@@ -53,7 +53,7 @@ impl ConversationManager {
     #[cfg(any(test, feature = "test-support"))]
     /// Construct with a dummy AuthManager containing the provided CodexAuth.
     /// Used for integration tests: should not be used by ordinary business logic.
-    pub fn with_auth(auth: CodexAuth) -> Self {
+    pub fn with_auth(auth: crate::auth::CodexAuth) -> Self {
         Self::new(
             crate::AuthManager::from_auth_for_testing(auth),
             SessionSource::Exec,

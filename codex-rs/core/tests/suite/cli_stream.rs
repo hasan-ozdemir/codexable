@@ -264,10 +264,9 @@ async fn integration_creates_and_checks_session_file() -> anyhow::Result<()> {
         .components()
         .map(|c| c.as_os_str().to_string_lossy().into_owned())
         .collect();
-    assert_eq!(
-        comps.len(),
-        4,
-        "Expected sessions/YYYY/MM/DD/<file>, got {rel:?}"
+    assert!(
+        (comps.len() == 4) || (comps.len() == 5),
+        "Expected sessions/YYYY/MM/DD[/<slug>]/<file>, got {rel:?}"
     );
     let year = &comps[0];
     let month = &comps[1];

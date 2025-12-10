@@ -82,6 +82,9 @@ use crate::mcp::auth::compute_auth_statuses;
 use crate::mcp_connection_manager::McpConnectionManager;
 use crate::project_doc::get_user_instructions;
 use crate::protocol::AgentMessageContentDeltaEvent;
+use crate::protocol::AgentMessageEvent;
+use crate::protocol::AgentReasoningEvent;
+use crate::protocol::AgentReasoningRawContentEvent;
 use crate::protocol::AgentReasoningSectionBreakEvent;
 use crate::protocol::ApplyPatchApprovalRequestEvent;
 use crate::protocol::AskForApproval;
@@ -104,6 +107,7 @@ use crate::protocol::TokenCountEvent;
 use crate::protocol::TokenUsage;
 use crate::protocol::TokenUsageInfo;
 use crate::protocol::TurnDiffEvent;
+use crate::protocol::UserMessageEvent;
 use crate::protocol::WarningEvent;
 use crate::rollout::RolloutRecorder;
 use crate::rollout::RolloutRecorderParams;
@@ -134,6 +138,8 @@ use codex_execpolicy::Policy as ExecPolicy;
 use codex_otel::otel_event_manager::OtelEventManager;
 use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
 use codex_protocol::models::ContentItem;
+use codex_protocol::models::ReasoningItemContent;
+use codex_protocol::models::ReasoningItemReasoningSummary;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort as ReasoningEffortConfig;
@@ -1075,13 +1081,52 @@ impl Session {
         turn_context: &TurnContext,
         rollout_items: &[RolloutItem],
     ) -> Vec<ResponseItem> {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum HistorySource {
+            Response,
+            EventFallback,
+            Other,
+        }
+
         let mut history = ContextManager::new();
+        let mut last_fingerprint: Option<String> = None;
+        let mut last_source = HistorySource::Other;
+
+        fn record_with_dedupe(
+            history: &mut ContextManager,
+            item: &ResponseItem,
+            source: HistorySource,
+            policy: TruncationPolicy,
+            last_fingerprint: &mut Option<String>,
+            last_source: &mut HistorySource,
+        ) {
+            let fp = response_fingerprint(item);
+            let is_duplicate = match source {
+                HistorySource::EventFallback => fp.is_some() && fp == *last_fingerprint,
+                HistorySource::Response => {
+                    matches!(*last_source, HistorySource::EventFallback)
+                        && fp.is_some()
+                        && fp == *last_fingerprint
+                }
+                HistorySource::Other => false,
+            };
+            if !is_duplicate {
+                history.record_items(std::iter::once(item), policy);
+                *last_fingerprint = fp;
+                *last_source = source;
+            }
+        }
+
         for item in rollout_items {
             match item {
                 RolloutItem::ResponseItem(response_item) => {
-                    history.record_items(
-                        std::iter::once(response_item),
+                    record_with_dedupe(
+                        &mut history,
+                        response_item,
+                        HistorySource::Response,
                         turn_context.truncation_policy,
+                        &mut last_fingerprint,
+                        &mut last_source,
                     );
                 }
                 RolloutItem::Compacted(compacted) => {
@@ -1097,6 +1142,21 @@ impl Session {
                             &compacted.message,
                         );
                         history.replace(rebuilt);
+                    }
+                    let updated = history.get_history();
+                    last_fingerprint = updated.last().and_then(response_fingerprint);
+                    last_source = HistorySource::Other;
+                }
+                RolloutItem::EventMsg(ev) => {
+                    if let Some(resp) = event_msg_to_response_item(ev) {
+                        record_with_dedupe(
+                            &mut history,
+                            &resp,
+                            HistorySource::EventFallback,
+                            turn_context.truncation_policy,
+                            &mut last_fingerprint,
+                            &mut last_source,
+                        );
                     }
                 }
                 _ => {}
@@ -2482,6 +2542,95 @@ pub(super) fn get_last_assistant_message_from_turn(responses: &[ResponseItem]) -
             None
         }
     })
+}
+
+fn event_msg_to_response_item(ev: &EventMsg) -> Option<ResponseItem> {
+    match ev {
+        EventMsg::UserMessage(UserMessageEvent { message, images }) => {
+            let mut content: Vec<ContentItem> = vec![ContentItem::InputText {
+                text: message.clone(),
+            }];
+            if let Some(imgs) = images {
+                content.extend(
+                    imgs.iter()
+                        .cloned()
+                        .map(|image_url| ContentItem::InputImage { image_url }),
+                );
+            }
+            Some(ResponseItem::Message {
+                id: None,
+                role: "user".to_string(),
+                content,
+            })
+        }
+        EventMsg::AgentMessage(AgentMessageEvent { message }) => Some(ResponseItem::Message {
+            id: None,
+            role: "assistant".to_string(),
+            content: vec![ContentItem::OutputText {
+                text: message.clone(),
+            }],
+        }),
+        EventMsg::AgentReasoning(AgentReasoningEvent { text }) => Some(ResponseItem::Reasoning {
+            id: String::new(),
+            summary: vec![ReasoningItemReasoningSummary::SummaryText { text: text.clone() }],
+            content: None,
+            encrypted_content: None,
+        }),
+        EventMsg::AgentReasoningRawContent(AgentReasoningRawContentEvent { text }) => {
+            Some(ResponseItem::Reasoning {
+                id: String::new(),
+                summary: Vec::new(),
+                content: Some(vec![ReasoningItemContent::ReasoningText {
+                    text: text.clone(),
+                }]),
+                encrypted_content: None,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn response_fingerprint(item: &ResponseItem) -> Option<String> {
+    match item {
+        ResponseItem::Message { role, content, .. } => {
+            let mut text = String::new();
+            for entry in content {
+                if let ContentItem::InputText { text: t } | ContentItem::OutputText { text: t } =
+                    entry
+                {
+                    text.push_str(t);
+                }
+            }
+            if text.is_empty() {
+                None
+            } else {
+                Some(format!("{role}:{text}"))
+            }
+        }
+        ResponseItem::Reasoning {
+            summary, content, ..
+        } => {
+            let mut text = String::new();
+            for entry in summary {
+                let ReasoningItemReasoningSummary::SummaryText { text: t } = entry;
+                text.push_str(t);
+            }
+            if let Some(raw) = content {
+                for entry in raw {
+                    match entry {
+                        ReasoningItemContent::ReasoningText { text: t }
+                        | ReasoningItemContent::Text { text: t } => text.push_str(t),
+                    }
+                }
+            }
+            if text.is_empty() {
+                None
+            } else {
+                Some(format!("reason:{text}"))
+            }
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
