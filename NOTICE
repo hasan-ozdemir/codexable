@@ -1,6 +1,13 @@
-OpenAI Codex
-Copyright 2025 OpenAI
+Codexa: Accessible Community Fork of Codex CLI
+Copyright 2025 OpenAI
+Additional modifications Copyright 2025 Hasan Özdemir and Codexa contributors
 
-This project includes code derived from [Ratatui](https://github.com/ratatui/ratatui), licensed under the MIT license.
+This product includes software originally developed and distributed by OpenAI as the Codex CLI (https://github.com/openai/codex) under the Apache License, Version 2.0.
+
+This project includes code derived from Ratatui (https://github.com/ratatui/ratatui), licensed under the MIT license.
 Copyright (c) 2016-2022 Florian Dehau
 Copyright (c) 2023-2025 The Ratatui Developers
+
+Codexa is an independent, community-maintained fork. It is not an official OpenAI product and is not affiliated with, endorsed by, or sponsored by OpenAI.
+
+Donations and sponsorships for this repository support Codexa maintainers only and do not support or represent OpenAI.
