@@ -92,10 +92,8 @@ pub fn compute_allow_paths(
 
 #[cfg(test)]
 mod tests {
-    use super::compute_allow_paths;
+    use super::*;
     use codex_protocol::protocol::SandboxPolicy;
-    use std::collections::HashMap;
-    use std::collections::HashSet;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -109,7 +107,7 @@ mod tests {
         let _ = fs::create_dir_all(&extra_root);
 
         let policy = SandboxPolicy::WorkspaceWrite {
-            writable_roots: vec![extra_root.clone()],
+            writable_roots: vec![PathBuf::from(&extra_root)],
             network_access: false,
             exclude_tmpdir_env_var: false,
             exclude_slash_tmp: false,

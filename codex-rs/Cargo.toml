@@ -41,6 +41,7 @@ members = [
     "utils/pty",
     "utils/readiness",
     "utils/string",
+    "utils/absolute-path",
     "codex-client",
     "codex-api",
 ]
@@ -91,6 +92,7 @@ codex-tui = { path = "tui" }
 codex-utils-cache = { path = "utils/cache" }
 codex-utils-image = { path = "utils/image" }
 codex-utils-json-to-toml = { path = "utils/json-to-toml" }
+codex-utils-absolute-path = { path = "utils/absolute-path" }
 codex-utils-pty = { path = "utils/pty" }
 codex-utils-readiness = { path = "utils/readiness" }
 codex-utils-string = { path = "utils/string" }
