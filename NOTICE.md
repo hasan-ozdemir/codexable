@@ -1,16 +1,15 @@
 Codexable Notice (Informational)
 ================================
 
-Bu repo, openai/codex'in bağımsız bir fork'udur. Codexable, erişilebilirlik
-odaklı bir geliştirme hattıdır ve Codex CLI deneyimini herkes için daha
-erişilebilir hale getirmeyi hedefler.
+This repository is an independent fork of openai/codex. Codexable is an
+accessibility-first development line that aims to make the Codex CLI
+experience more usable and inclusive.
 
-Ben görme engelli bir yazılım mühendisi olarak, yıllara dayanan kıdemli
-lider yazılım mühendisliği deneyimi ve derin erişilebilirlik uzmanlığıyla
-bu vizyona odaklanıyorum. Değişiklikler, upstream openai/codex tarafına
-`codex/feat/*` dalları üzerinden adım adım PR olarak taşınır.
+The maintainer is a visually impaired software engineer with long-term
+senior leadership experience and deep accessibility expertise. Changes
+are shared upstream to openai/codex via step-by-step PRs from
+`codex/feat/*` branches.
 
-Bu çalışma gönüllü sponsorluklar, bağışlar ve topluluk geri bildirimiyle
-sürdürülmektedir. Destek olmak isteyen bireyler ve kurumlar için finansal
-katkı, test/geri bildirim ve erişilebilirlik değerlendirmeleri çok değerli
-olur.
+This work is sustained by voluntary sponsorships, donations, and
+community feedback. Financial support, testing, and accessibility
+evaluations are all deeply appreciated.
