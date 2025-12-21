@@ -204,12 +204,14 @@ limitations under the License.
 NON-LICENSE NOTE (workflow, contribution, and support model)
 
 Codexable is an independent fork of openai/codex with a focus on
-accessibility improvements for the Codex CLI. I plan to contribute
-improvements back to openai/codex via step-by-step PRs. This fork is
-maintained with a sponsorship model for ongoing accessibility work,
-support, and distribution. Sponsorship does not change the Apache-2.0
-licensing of the code; this note is purely informational and does not
-modify the license terms above.
+accessibility improvements for the Codex CLI. The maintainer is a
+visually impaired software engineer with long-term senior leadership
+experience and deep accessibility expertise. Improvements are shared
+back to openai/codex via step-by-step PRs. This fork is maintained with
+voluntary sponsorships and community support for ongoing accessibility
+work, distribution, and feedback. Sponsorship does not change the
+Apache-2.0 licensing of the code; this note is purely informational and
+does not modify the license terms above.
 
 Branching and release conventions used in this repository:
 - main: Codexable product mainline (release source)
