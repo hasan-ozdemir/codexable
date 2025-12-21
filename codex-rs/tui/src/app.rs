@@ -592,6 +592,7 @@ impl App {
                     &self.config.codex_home,
                     &self.config.model_provider_id,
                     false,
+                    Some(self.config.cwd.clone()),
                 )
                 .await?
                 {

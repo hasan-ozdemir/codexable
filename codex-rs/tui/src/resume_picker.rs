@@ -12,6 +12,8 @@ use codex_core::INTERACTIVE_SESSION_SOURCES;
 use codex_core::RolloutRecorder;
 use codex_core::path_utils;
 use codex_protocol::items::TurnItem;
+use codex_protocol::protocol::RolloutItem;
+use codex_protocol::protocol::RolloutLine;
 use color_eyre::eyre::Result;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
@@ -22,6 +24,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Stylize as _;
 use ratatui::text::Line;
 use ratatui::text::Span;
+use tokio::io::AsyncBufReadExt;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -73,6 +76,7 @@ pub async fn run_resume_picker(
     codex_home: &Path,
     default_provider: &str,
     show_all: bool,
+    filter_cwd: Option<PathBuf>,
 ) -> Result<ResumeSelection> {
     let alt = AltScreenGuard::enter(tui);
     let (bg_tx, bg_rx) = mpsc::unbounded_channel();
@@ -81,12 +85,14 @@ pub async fn run_resume_picker(
     let filter_cwd = if show_all {
         None
     } else {
-        std::env::current_dir().ok()
+        filter_cwd.or_else(|| std::env::current_dir().ok())
     };
 
     let loader_tx = bg_tx.clone();
+    let loader_filter_cwd = filter_cwd.clone();
     let page_loader: PageLoader = Arc::new(move |request: PageLoadRequest| {
         let tx = loader_tx.clone();
+        let filter_cwd = loader_filter_cwd.clone();
         tokio::spawn(async move {
             let provider_filter = vec![request.default_provider.clone()];
             let page = RolloutRecorder::list_conversations(
@@ -98,6 +104,15 @@ pub async fn run_resume_picker(
                 request.default_provider.as_str(),
             )
             .await;
+            let page = match page {
+                Ok(mut page) => {
+                    if let Some(filter_cwd) = filter_cwd.as_ref() {
+                        page.items = filter_items_by_cwd(page.items, filter_cwd).await;
+                    }
+                    Ok(page)
+                }
+                Err(err) => Err(err),
+            };
             let _ = tx.send(BackgroundEvent::PageLoaded {
                 request_token: request.request_token,
                 search_token: request.search_token,
@@ -463,17 +478,13 @@ impl PickerState {
         self.request_frame();
     }
 
-    fn row_matches_filter(&self, row: &Row) -> bool {
-        if self.show_all {
+    fn row_matches_filter(&self, _row: &Row) -> bool {
+        if self.show_all || self.filter_cwd.is_none() {
             return true;
         }
-        let Some(filter_cwd) = self.filter_cwd.as_ref() else {
-            return true;
-        };
-        let Some(row_cwd) = row.cwd.as_ref() else {
-            return false;
-        };
-        paths_match(row_cwd, filter_cwd)
+        // CWD filtering is applied during page load to account for sessions
+        // that used the directory later in their history.
+        true
     }
 
     fn set_query(&mut self, new_query: String) {
@@ -629,6 +640,66 @@ impl PickerState {
 
 fn rows_from_items(items: Vec<ConversationItem>) -> Vec<Row> {
     items.into_iter().map(|item| head_to_row(&item)).collect()
+}
+
+async fn filter_items_by_cwd(
+    items: Vec<ConversationItem>,
+    filter_cwd: &Path,
+) -> Vec<ConversationItem> {
+    let mut filtered = Vec::with_capacity(items.len());
+    for item in items {
+        if conversation_mentions_cwd(&item, filter_cwd).await {
+            filtered.push(item);
+        }
+    }
+    filtered
+}
+
+async fn conversation_mentions_cwd(item: &ConversationItem, filter_cwd: &Path) -> bool {
+    if head_mentions_cwd(&item.head, filter_cwd) {
+        return true;
+    }
+    session_file_mentions_cwd(&item.path, filter_cwd).await
+}
+
+fn head_mentions_cwd(head: &[serde_json::Value], filter_cwd: &Path) -> bool {
+    head.iter().any(|value| {
+        serde_json::from_value::<SessionMetaLine>(value.clone())
+            .ok()
+            .is_some_and(|meta_line| paths_match(&meta_line.meta.cwd, filter_cwd))
+    })
+}
+
+async fn session_file_mentions_cwd(path: &Path, filter_cwd: &Path) -> bool {
+    let Ok(file) = tokio::fs::File::open(path).await else {
+        return false;
+    };
+    let reader = tokio::io::BufReader::new(file);
+    let mut lines = reader.lines();
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let Ok(rollout_line) = serde_json::from_str::<RolloutLine>(trimmed) else {
+            continue;
+        };
+        match rollout_line.item {
+            RolloutItem::SessionMeta(meta_line) => {
+                if paths_match(&meta_line.meta.cwd, filter_cwd) {
+                    return true;
+                }
+            }
+            RolloutItem::TurnContext(ctx) => {
+                if paths_match(&ctx.cwd, filter_cwd) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn head_to_row(item: &ConversationItem) -> Row {
