@@ -22,6 +22,7 @@ Key flags: `--model/-m`, `--ask-for-approval/-a`.
 - Resume most recent: `codex resume --last`
 - Resume by id: `codex resume <SESSION_ID>` (You can get session ids from /status or `~/.codex/sessions/`)
 - The picker shows the session's recorded Git branch when available.
+- By default, the picker only shows sessions that used the configured working directory (current dir or `--cd`).
 - To show the session's original working directory (CWD), run `codex resume --all` (this also disables cwd filtering and adds a `CWD` column).
 
 Examples:
