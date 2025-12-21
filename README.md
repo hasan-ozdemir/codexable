@@ -11,21 +11,47 @@
 
 ---
 
-## Codexable fork: accessibility + community support
+## Codexable: Erişilebilirlik Vizyonu ve Topluluk Desteği
 
-This repository is a fork of `openai/codex`, maintained independently as
-Codexable with a focus on improving accessibility in the Codex CLI
-experience. The goal is a globally accessible terminal UX for everyone.
+Bu depo, `openai/codex` reposunun fork'udur. Codexable, erişilebilirlik
+odaklı bağımsız bir geliştirme hattıdır ve Codex CLI deneyimini herkes
+için kullanılabilir kılmayı hedefler.
 
-I plan to contribute improvements back to the upstream `openai/codex`
-project via step-by-step PRs from `codex/feat/*` branches, while keeping
-Codexable product work under `feat/*` and `fix/*`.
+Ben görme engelli bir yazılım mühendisiyim; yıllara dayanan kıdemli
+lider yazılım mühendisliği deneyimi ve derin erişilebilirlik uzmanlığıyla
+bu vizyona odaklanıyorum. Yaklaşımım samimi, pragmatik ve yardımseverdir:
+öncelik, somut iyileştirmeler ve sürdürülebilir ilerlemedir.
 
-This work is supported by voluntary sponsorships and donations. If this
-mission resonates with you or your organization, please consider
-supporting the project financially or by sharing feedback, testing, and
-accessibility insights. Community support is essential to keep this
-effort going.
+### Vizyon
+
+Evrensel ölçekte, farklı yeteneklere ve kullanım alışkanlıklarına sahip
+kişilerin engelsizce kullanabildiği bir codex-cli terminal deneyimi.
+
+### Misyon
+
+- Klavye etkileşimi, ekran okuyucu uyumu, kontrast/okunabilirlik ve akış
+  düzeni gibi erişilebilirlik temellerini güçlendirmek.
+- Değişiklikleri şeffaf biçimde upstream'e taşımak ve topluluk geri
+  bildirimiyle iteratif olarak iyileştirmek.
+
+### Katkı modeli
+
+- `codex/main`: `openai/codex` `main` aynası.
+- `codex/feat/*`: upstream'e PR açılacak katkılar.
+- `feat/*` ve `fix/*`: Codexable ürün geliştirmeleri.
+
+### Destek çağrısı
+
+Bu çalışmanın sürdürülebilir olması için topluluk desteğine ihtiyacım
+var. Bireylerin ve kurumların katkısı, hem benim açımdan hem de daha
+erişilebilir bir ekosistem açısından çok büyük etki yaratır.
+
+Destek olmanın yolları:
+
+- Gönüllü sponsorluk ve bağışlar.
+- Erişilebilirlik testleri ve geri bildirim.
+- Kullanım senaryoları, hata raporları ve iyileştirme önerileri.
+- Kurumsal pilotlar ve ekip içi yaygınlaştırma.
 
 ## Quickstart
 
