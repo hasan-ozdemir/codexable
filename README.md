@@ -11,47 +11,46 @@
 
 ---
 
-## Codexable: Erişilebilirlik Vizyonu ve Topluluk Desteği
+## Codexable: Accessibility-first community fork
 
-Bu depo, `openai/codex` reposunun fork'udur. Codexable, erişilebilirlik
-odaklı bağımsız bir geliştirme hattıdır ve Codex CLI deneyimini herkes
-için kullanılabilir kılmayı hedefler.
+This repository is a fork of `openai/codex`. Codexable is maintained
+independently with a dedicated focus on accessibility, aiming to make
+the Codex CLI experience usable for everyone.
 
-Ben görme engelli bir yazılım mühendisiyim; yıllara dayanan kıdemli
-lider yazılım mühendisliği deneyimi ve derin erişilebilirlik uzmanlığıyla
-bu vizyona odaklanıyorum. Yaklaşımım samimi, pragmatik ve yardımseverdir:
-öncelik, somut iyileştirmeler ve sürdürülebilir ilerlemedir.
+The maintainer is a visually impaired software engineer with long-term
+senior leadership experience and deep accessibility expertise. The
+approach is practical, helpful, and focused on durable improvements.
 
-### Vizyon
+### Vision
 
-Evrensel ölçekte, farklı yeteneklere ve kullanım alışkanlıklarına sahip
-kişilerin engelsizce kullanabildiği bir codex-cli terminal deneyimi.
+A universally accessible codex-cli terminal experience that works well
+for people with different abilities, tools, and workflows.
 
-### Misyon
+### Mission
 
-- Klavye etkileşimi, ekran okuyucu uyumu, kontrast/okunabilirlik ve akış
-  düzeni gibi erişilebilirlik temellerini güçlendirmek.
-- Değişiklikleri şeffaf biçimde upstream'e taşımak ve topluluk geri
-  bildirimiyle iteratif olarak iyileştirmek.
+- Strengthen accessibility fundamentals: keyboard flows, screen reader
+  compatibility, contrast/readability, and interaction clarity.
+- Share improvements upstream via transparent, step-by-step PRs and
+  iterate with community feedback.
 
-### Katkı modeli
+### Contribution model
 
-- `codex/main`: `openai/codex` `main` aynası.
-- `codex/feat/*`: upstream'e PR açılacak katkılar.
-- `feat/*` ve `fix/*`: Codexable ürün geliştirmeleri.
+- `codex/main`: mirror of `openai/codex` `main`.
+- `codex/feat/*`: upstream contribution branches.
+- `feat/*` and `fix/*`: Codexable product work.
 
-### Destek çağrısı
+### Support request
 
-Bu çalışmanın sürdürülebilir olması için topluluk desteğine ihtiyacım
-var. Bireylerin ve kurumların katkısı, hem benim açımdan hem de daha
-erişilebilir bir ekosistem açısından çok büyük etki yaratır.
+This work depends on community support. If this mission resonates with
+you or your organization, your help makes a real difference both for
+this project and for the broader accessibility ecosystem.
 
-Destek olmanın yolları:
+Ways to help:
 
-- Gönüllü sponsorluk ve bağışlar.
-- Erişilebilirlik testleri ve geri bildirim.
-- Kullanım senaryoları, hata raporları ve iyileştirme önerileri.
-- Kurumsal pilotlar ve ekip içi yaygınlaştırma.
+- Voluntary sponsorships and donations.
+- Accessibility testing and feedback.
+- Usage scenarios, bug reports, and improvement proposals.
+- Organizational pilots and advocacy.
 
 ## Quickstart
 
