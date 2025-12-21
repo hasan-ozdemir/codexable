@@ -11,6 +11,22 @@
 
 ---
 
+## Codexable fork: accessibility + community support
+
+This repository is a fork of `openai/codex`, maintained independently as
+Codexable with a focus on improving accessibility in the Codex CLI
+experience. The goal is a globally accessible terminal UX for everyone.
+
+I plan to contribute improvements back to the upstream `openai/codex`
+project via step-by-step PRs from `codex/feat/*` branches, while keeping
+Codexable product work under `feat/*` and `fix/*`.
+
+This work is supported by voluntary sponsorships and donations. If this
+mission resonates with you or your organization, please consider
+supporting the project financially or by sharing feedback, testing, and
+accessibility insights. Community support is essential to keep this
+effort going.
+
 ## Quickstart
 
 ### Installing and running Codex CLI
