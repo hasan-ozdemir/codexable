@@ -487,6 +487,7 @@ async fn run_ratatui_app(
             &config.codex_home,
             &config.model_provider_id,
             cli.resume_show_all,
+            Some(config.cwd.clone()),
         )
         .await?
         {
