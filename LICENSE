@@ -201,12 +201,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ---
-NON-LICENSE NOTE (repository workflow only)
+NON-LICENSE NOTE (workflow and support model)
 
-This fork uses the following branch naming conventions:
-- main: Codexable product mainline
+This fork ("Codexable") is maintained with a sponsorship model for
+ongoing accessibility work, support, and distribution. Sponsorship does
+not change the Apache-2.0 licensing of the code; this note is purely
+informational and does not modify the license terms above.
+
+Branching and release conventions used in this repository:
+- main: Codexable product mainline (release source)
 - dev: Codexable integration branch
 - codex/main: mirror of openai/codex main
 - feat/* and fix/*: Codexable product work
-- codex/feat/*: upstream contribution branches
+- codex/feat/*: upstream contribution branches (PRs to openai/codex)
 - release/x.y.z: release tags
