@@ -110,3 +110,25 @@ See the [Execpolicy quickstart](./docs/execpolicy.md) to set up rules that gover
 ## License
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).
+
+---
+
+## Branching & release model (Codexable fork)
+
+This fork uses a split model so product work and upstream contributions stay cleanly separated.
+
+- `main`: Codexable product mainline (what ships from this repo).
+- `dev`: integration branch for Codexable work before it lands on `main`.
+- `codex/main`: mirror of `openai/codex` `main` (keep in sync; push to `origin/codex/main`).
+- `feat/*` and `fix/*`: Codexable product work.
+- `codex/feat/*`: upstream contribution work (branch from `codex/main`, open PRs to `openai/codex:main`).
+- Release tags: `release/x.y.z`.
+
+Typical upstream sync:
+
+```shell
+git fetch upstream
+git switch codex/main
+git merge upstream/main
+git push origin codex/main
+```
